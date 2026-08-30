@@ -1,0 +1,46 @@
+{
+  "schemaVersion": 1,
+  "id": "io.github.fromchaoscomesclarity.cafeneurotico",
+  "name": "Cafe Neurotico",
+  "version": "0.1.0",
+  "author": "Jose",
+  "license": "GPL-3.0-or-later",
+  "description": "Your game library in the bar: how many games are installed, and what is running right now. Click to open Cafe Neurotico, middle-click for CREMA on the couch.",
+  "homepage": "https://github.com/FromChaosComesClarity/CafeNeurotico",
+  "kinds": [
+    "bar-widget"
+  ],
+  "entryPoints": {
+    "barWidget": "CafeNeurotico.qml"
+  },
+  "barWidget": {
+    "displayName": "Cafe Neurotico",
+    "description": "Installed games, and what is playing.",
+    "category": "System",
+    "defaultSection": "right",
+    "allowMultiple": false,
+    "schema": [
+      {
+        "key": "appimage",
+        "type": "path",
+        "label": "Cafe Neurotico command",
+        "description": "The AppImage to open. Middle-click launches the same binary with --crema for the couch face.",
+        "defaultValue": "/home/jose/Games/CNGM/CafeNeurotico.AppImage"
+      },
+      {
+        "key": "database",
+        "type": "path",
+        "label": "GRINDER database",
+        "description": "grinder.db, which holds what is installed. Set explicitly rather than guessed — a second consumer deriving its own path is exactly how the library got orphaned once before.",
+        "defaultValue": "/home/jose/.config/grinder/grinder.db"
+      },
+      {
+        "key": "interval",
+        "type": "integer",
+        "label": "Refresh seconds",
+        "description": "How often to re-check. The running-game check is cheap; the install count is only re-read when the database changes.",
+        "defaultValue": 3
+      }
+    ]
+  }
+}

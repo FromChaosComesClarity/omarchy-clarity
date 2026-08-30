@@ -1,0 +1,78 @@
+#!/usr/bin/env bash
+# Stream Cafe Neurotico's library state to stdout, one JSON object per line.
+#
+# Two facts, and they are gathered very differently:
+#
+#   what is RUNNING  — from the compositor, not from the app. Cafe Neurotico is
+#     not necessarily open while a game is, and asking the app would mean it had
+#     to be running to answer. Hyprland always knows what windows exist.
+#
+#   what is INSTALLED — from grinder.db, re-read only when its mtime changes.
+#     ⚠️ A game directory can be large and this loop is every few seconds, so the
+#     count is cached; nothing here walks a filesystem.
+#
+# ⚠️ The database path is passed in, never derived. Cafe Neurotico resolves it
+# through host.findGrinderDb(), and a second consumer computing its own path is
+# precisely how the library got orphaned once before (the two-grinder.db split).
+# If the file is not there, this reports installed:null rather than guessing.
+#
+# ⚠️ WAL mode: grinder.db is opened read-only with immutable=0 so a live writer
+# is never blocked, and a busy timeout so a checkpoint in progress yields a stale
+# count for one tick instead of an error.
+
+db="${1:-$HOME/.config/grinder/grinder.db}"
+interval="${2:-3}"
+
+# Games launched through umu/Proton all arrive as steam_app_*; the rest are the
+# native engines the custom installers set up. Kept in step with the app's own
+# GAME_CLASS_RE in packages/core/omarchy.js — if that list grows, this follows.
+game_class='^(steam_app_.*|dosbox.*|scummvm|openbor|gzdoom|uzdoom|ironwail|vkquake|quake.*|raze|buildgdx|ecwolf|cannonball)$'
+
+installed=null
+db_stamp=""
+
+json_escape() { printf '%s' "$1" | python3 -c 'import json,sys; print(json.dumps(sys.stdin.read()))'; }
+
+while true; do
+  # ── installed count, only when the database actually changed ──────────────
+  if [ -r "$db" ]; then
+    stamp=$(stat -c '%Y-%s' "$db" 2>/dev/null)
+    if [ "$stamp" != "$db_stamp" ]; then
+      db_stamp="$stamp"
+      n=$(sqlite3 -readonly -cmd '.timeout 2000' "$db" \
+            'SELECT COUNT(*) FROM games WHERE installed=1;' 2>/dev/null)
+      case "$n" in
+        ''|*[!0-9]*) : ;;          # a locked or half-written db: keep the last good count
+        *) installed="$n" ;;
+      esac
+    fi
+  else
+    installed=null
+    db_stamp=""
+  fi
+
+  # ── what is playing, straight from the compositor ─────────────────────────
+  playing=$(hyprctl -j clients 2>/dev/null | python3 -c '
+import json, sys, re
+try:
+    cs = json.load(sys.stdin)
+except Exception:
+    sys.exit(0)
+rx = re.compile(sys.argv[1])
+for c in cs:
+    cls = (c.get("class") or "")
+    if rx.match(cls):
+        # The title is what a person recognises; the class is steam_app_0 for
+        # every umu title, so it identifies nothing on its own.
+        print((c.get("title") or cls).strip()[:60])
+        break
+' "$game_class" 2>/dev/null)
+
+  if [ -n "$playing" ]; then
+    printf '{"installed":%s,"playing":%s}\n' "$installed" "$(json_escape "$playing")"
+  else
+    printf '{"installed":%s,"playing":null}\n' "$installed"
+  fi
+
+  sleep "$interval"
+done
