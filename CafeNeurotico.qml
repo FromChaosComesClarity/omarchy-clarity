@@ -62,11 +62,14 @@ BarWidget {
     anchors.fill: parent
     bar: root.bar
 
-    // Controller when a game is up, cup when it is not — the app is named after
-    // the cup, and the distinction is the whole point of the widget.
+    // Controller when a game is up, coffee cup when it is not — the app is named
+    // after the cup, and that distinction is the whole point of the widget.
+    // ⚠️ U+F0176 nf-md-coffee, verified by codepoint. The first draft used
+    // U+F0150, which renders as a CLOCK — close enough in a code editor to miss,
+    // and obvious the moment it reached the bar.
     text: root.playing !== ""
       ? "󰊴 " + root.playing
-      : (root.installed >= 0 ? "󰅐 " + root.installed : "󰅐")
+      : (root.installed >= 0 ? "󰅶 " + root.installed : "󰅶")
 
     active: root.playing !== ""
     dimmed: root.installed < 0 && root.playing === ""
