@@ -1,4 +1,5 @@
 import QtQuick
+import Quickshell
 import Quickshell.Io
 import qs.Commons
 import qs.Ui
@@ -31,6 +32,13 @@ BarWidget {
   // running backend last read out of the descriptor.
   readonly property string appimage: appimageOverride !== "" ? appimageOverride : reportedExec
 
+  // Injected by the bar host when these properties exist — the same pair the overlay half
+  // of this plugin is handed. `shell` is how the launcher overlay gets toggled.
+  property var shellRef: null
+  property var shell: null
+  property var manifest: null
+  onShellChanged: root.shellRef = shell
+
   // Qt.resolvedUrl gives a file:// URL; the shell wants a plain path, and the
   // plugin directory is user-named, so the percent-decoding is not optional.
   readonly property string watchScript:
@@ -39,6 +47,36 @@ BarWidget {
   property int installed: -1        // -1 = not known yet, not "zero games"
   property string playing: ""
   property string reportedExec: ""
+  property bool menuOpen: false
+
+  // One click from the bar to everything the app does. The launcher is an overlay in this
+  // same plugin, so it is toggled through the shell rather than spawned; the rest are the
+  // app's own deeplinks, which is why this list needs no knowledge of what they do.
+  readonly property var menuItems: [
+    { kind: "item", label: "Open the library",   glyph: "󰅶", act: "manager" },
+    { kind: "item", label: "Find a game…",       glyph: "󰍉", act: "launcher" },
+    { kind: "item", label: "Play on the couch",  glyph: "󰊴", act: "crema" },
+    { kind: "sep" },
+    { kind: "item", label: "Manage storage",     glyph: "󰋊", act: "action:manage-storage" },
+    { kind: "item", label: "Control Panel",      glyph: "󰒓", act: "action:control-panel" },
+  ]
+
+  // Named so broadcast("toggleMenu") can find it on every instance.
+  function toggleMenu() { root.menuOpen = !root.menuOpen }
+
+  function runMenuItem(item) {
+    if (!item || !item.act) return
+    if (item.act === "manager") { root.open([]); return }
+    if (item.act === "crema")   { root.open(["--crema"]); return }
+    if (item.act === "launcher") {
+      // The overlay lives in this plugin, so ask the shell to toggle it rather than
+      // starting anything — spawning would give a second copy of a thing already loaded.
+      if (root.shellRef && typeof root.shellRef.toggle === "function")
+        root.shellRef.toggle((root.manifest && root.manifest.id) || "io.github.fromchaoscomesclarity.cafeneurotico", "{}")
+      return
+    }
+    if (item.act.indexOf("action:") === 0) { root.open(["--action=" + item.act.slice(7)]); return }
+  }
 
   implicitWidth: button.implicitWidth
   implicitHeight: button.implicitHeight
@@ -91,13 +129,152 @@ BarWidget {
          ? "Cafe Neurotico — cannot read the library database"
          : root.installed + " games installed — click for the library, middle-click for CREMA")
 
-    // Left opens the Manager, middle opens the couch face. Right is left alone:
-    // it is the bar's own context menu everywhere else, and taking it here would
-    // make this widget the one that behaves differently.
+    // Left opens the menu — everything the app can do from the bar is one click away
+    // rather than one click plus a window. Middle still jumps straight to CREMA, because
+    // someone sitting down does not want a menu first. Right is left alone: it is the
+    // bar's own context menu everywhere else, and taking it here would make this widget
+    // the one that behaves differently.
     onPressed: function(mouseButton) {
       if (mouseButton === Qt.MiddleButton) root.open(["--crema"])
-      else if (mouseButton === Qt.LeftButton) root.open([])
+      else if (mouseButton === Qt.LeftButton) root.menuOpen = !root.menuOpen
     }
+  }
+
+  // ── The menu ───────────────────────────────────────────────────────────────
+  // Built on the shell's own PopupCard, so it dismisses, positions and themes exactly like
+  // every other bar popup on the desktop rather than being this plugin's own idea of one.
+  PopupCard {
+    id: menu
+    anchorItem: button
+    owner: root
+    bar: root.bar
+    open: root.menuOpen
+    padding: Style.space(8)
+    contentWidth: menu.fittedContentWidth(Style.space(248))
+    contentHeight: menu.fittedContentHeight(menuColumn.implicitHeight, Style.space(420))
+    onVisibleChanged: if (!visible) root.menuOpen = false
+
+    Column {
+      id: menuColumn
+      anchors.fill: parent
+      spacing: Style.space(2)
+
+      // What is playing, when something is. It is the reason to glance at this widget,
+      // so it leads — and it is a label, not a row you can press.
+      Item {
+        width: parent.width
+        height: root.playing !== "" ? nowPlaying.implicitHeight + Style.space(10) : 0
+        visible: root.playing !== ""
+        Column {
+          id: nowPlaying
+          width: parent.width
+          spacing: 2
+          Text {
+            text: "NOW PLAYING"
+            color: Color.popups.text
+            opacity: 0.5
+            font.family: Style.font.menuFamily
+            font.pixelSize: Style.font.caption
+            font.letterSpacing: 1.2
+          }
+          Text {
+            width: parent.width
+            text: root.playing
+            color: Color.accent
+            font.family: Style.font.menuFamily
+            font.pixelSize: Style.font.body
+            elide: Text.ElideRight
+          }
+        }
+      }
+
+      Rectangle {
+        width: parent.width
+        height: Math.max(1, Style.space(1))
+        color: Color.popups.text
+        opacity: 0.14
+        visible: root.playing !== ""
+      }
+
+      Repeater {
+        model: root.menuItems
+        delegate: Rectangle {
+          required property var modelData
+          required property int index
+          width: menuColumn.width
+          height: modelData.kind === "sep"
+            ? Math.max(1, Style.space(1)) + Style.space(8)
+            : Math.max(Style.space(28), rowLabel.implicitHeight + Style.space(12))
+          color: rowMouse.containsMouse && modelData.kind !== "sep"
+            ? Qt.rgba(Color.accent.r, Color.accent.g, Color.accent.b, 0.14)
+            : "transparent"
+          radius: Style.cornerRadius
+
+          Rectangle {
+            anchors.verticalCenter: parent.verticalCenter
+            width: parent.width
+            height: Math.max(1, Style.space(1))
+            color: Color.popups.text
+            opacity: 0.14
+            visible: modelData.kind === "sep"
+          }
+
+          Text {
+            id: rowLabel
+            visible: modelData.kind !== "sep"
+            anchors.left: parent.left
+            anchors.leftMargin: Style.space(10)
+            anchors.right: rowGlyph.left
+            anchors.rightMargin: Style.space(8)
+            anchors.verticalCenter: parent.verticalCenter
+            text: modelData.label || ""
+            color: rowMouse.containsMouse ? Color.accent : Color.popups.text
+            font.family: Style.font.menuFamily
+            font.pixelSize: Style.font.body
+            elide: Text.ElideRight
+          }
+
+          Text {
+            id: rowGlyph
+            visible: modelData.kind !== "sep"
+            anchors.right: parent.right
+            anchors.rightMargin: Style.space(10)
+            anchors.verticalCenter: parent.verticalCenter
+            text: modelData.glyph || ""
+            color: rowMouse.containsMouse ? Color.accent : Color.popups.text
+            opacity: rowMouse.containsMouse ? 1 : 0.55
+            font.family: Style.font.menuFamily
+            font.pixelSize: Style.font.body
+          }
+
+          MouseArea {
+            id: rowMouse
+            anchors.fill: parent
+            enabled: modelData.kind !== "sep"
+            hoverEnabled: true
+            cursorShape: enabled ? Qt.PointingHandCursor : Qt.ArrowCursor
+            onClicked: {
+              root.menuOpen = false
+              root.runMenuItem(modelData)
+            }
+          }
+        }
+      }
+    }
+  }
+
+  // Bindable from a key, and the only way to drive the menu without a mouse:
+  //   omarchy-shell io.github.fromchaoscomesclarity.cafeneurotico menu
+  // ⚠️ A bar widget exists once per monitor, so the handler toggles through broadcast()
+  // rather than this instance alone — otherwise the menu opens on whichever screen the
+  // shell happened to instantiate first.
+  IpcHandler {
+    target: (root.manifest && root.manifest.id) || "io.github.fromchaoscomesclarity.cafeneurotico"
+    function menu(): void { root.broadcast("toggleMenu") }
+    function library(): void { root.open([]) }
+    function couch(): void { root.open(["--crema"]) }
+    function playing(): string { return root.playing }
+    function installed(): string { return String(root.installed) }
   }
 
   Process {

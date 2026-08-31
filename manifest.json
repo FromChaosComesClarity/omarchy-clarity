@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "io.github.fromchaoscomesclarity.cafeneurotico",
   "name": "Cafe Neurotico",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "author": "Jose",
   "license": "GPL-3.0-or-later",
   "description": "Your game library in the bar and one keystroke away: how many games are installed, what is running right now, and a fuzzy launcher that starts any of them. Click to open Cafe Neurotico, middle-click for CREMA on the couch.",

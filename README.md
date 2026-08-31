@@ -5,8 +5,10 @@ installed, what is running right now, and a fuzzy launcher that starts any of th
 
 **In the bar**
 
-- **Left click** — open Cafe Neurotico (the Manager)
-- **Middle click** — open CREMA, the fullscreen couch face
+- **Left click** — a menu: the library, the launcher, CREMA, Manage Storage, the Control
+  Panel, and what is playing when something is
+- **Middle click** — straight to CREMA, the fullscreen couch face, with no menu in the way
+- Bindable to a key too: `omarchy-shell io.github.fromchaoscomesclarity.cafeneurotico menu`
 
 **The launcher** (an overlay, bind it to a key — see below)
 
