@@ -1,0 +1,104 @@
+#!/usr/bin/env bash
+# Fetch and set up Cafe Neurotico, for someone who installed this plugin first.
+#
+# ⚠️ This runs in a TERMINAL, never in the background. It downloads roughly 270 MB and then
+# runs an executable it just fetched: a bar widget doing that silently gives you no progress,
+# no cancel, and no idea what it ran. Handing it to a terminal is the same thing the app
+# itself does for package installs, and it is what a marketplace reviewer should expect.
+#
+# ⚠️ NOT `/releases/latest`. GitHub excludes pre-releases from that endpoint and every
+# experimental Cafe Neurotico build is a pre-release — measured 2026-08-31, `/releases/latest`
+# returns v1.9.3, which does NOT write the descriptor this plugin reads. Installing that would
+# leave the bar saying "not installed" forever, having just installed the app. So: walk
+# /releases and take the newest release carrying an .AppImage asset.
+
+set -uo pipefail
+
+REPO="FromChaosComesClarity/CafeNeurotico"
+API="https://api.github.com/repos/$REPO/releases"
+
+say()  { printf '\033[36m%s\033[0m\n' "$*"; }
+warn() { printf '\033[33m%s\033[0m\n' "$*"; }
+die()  { printf '\033[31m%s\033[0m\n' "$*" >&2; printf '\n── press enter to close ──\n'; read -r _; exit 1; }
+
+command -v curl >/dev/null    || die "curl is needed and is not installed."
+command -v python3 >/dev/null || die "python3 is needed and is not installed."
+
+cat <<'BANNER'
+
+  ┌──────────────────────────────────────────────┐
+  │  CAFE NEUROTICO                              │
+  │  the game center for Omarchy                 │
+  └──────────────────────────────────────────────┘
+
+BANNER
+
+# ⚠️ The AppImage's own folder becomes the app's data directory — the library, the artwork and
+# the settings all land beside it. That makes this a real choice, so it is offered rather than
+# decided silently.
+DEFAULT_DIR="$HOME/Games/CafeNeurotico"
+say "Where should it live?"
+printf '  The library, artwork and settings are kept beside the AppImage.\n'
+printf '  [%s]\n  > ' "$DEFAULT_DIR"
+read -r TARGET_DIR
+TARGET_DIR="${TARGET_DIR:-$DEFAULT_DIR}"
+TARGET_DIR="${TARGET_DIR/#\~/$HOME}"
+
+mkdir -p "$TARGET_DIR" || die "Could not create $TARGET_DIR"
+
+say ""
+say "Looking for the newest build…"
+read -r TAG URL < <(curl -fsSL "$API" 2>/dev/null | python3 -c '
+import json, sys
+try:
+    releases = json.load(sys.stdin)
+except Exception:
+    sys.exit(1)
+for rel in releases:                       # newest first, pre-releases included
+    for asset in rel.get("assets") or []:
+        if str(asset.get("name","")).endswith(".AppImage"):
+            print(rel.get("tag_name",""), asset.get("browser_download_url",""))
+            sys.exit(0)
+sys.exit(1)
+') || die "Could not reach GitHub, or no release has an AppImage yet."
+
+[ -n "${URL:-}" ] || die "No AppImage found in any release."
+say "Found $TAG"
+
+DEST="$TARGET_DIR/CafeNeurotico.AppImage"
+if [ -e "$DEST" ]; then
+  warn "There is already a CafeNeurotico.AppImage in $TARGET_DIR."
+  printf '  Replace it? [y/N] '
+  read -r reply
+  case "$reply" in [yY]*) ;; *) die "Left it alone. Nothing was changed." ;; esac
+fi
+
+say ""
+say "Downloading — this is around 270 MB."
+# ⚠️ To a temporary name first: a half-downloaded file with the real name looks installed,
+# and the app would be run and fail in a way that is hard to attribute.
+TMP="$DEST.part"
+curl -fL --progress-bar -o "$TMP" "$URL" || { rm -f "$TMP"; die "The download did not finish. Nothing was installed."; }
+mv -f "$TMP" "$DEST" || die "Could not put the file in place."
+chmod +x "$DEST"     || die "Downloaded, but could not make it executable."
+
+say ""
+say "Starting it once so it can register itself…"
+printf '  The bar widget reads ~/.config/cafeneurotico/desktop.json, which the app writes on\n'
+printf '  every start. Until it has run once, the widget has nothing to read.\n\n'
+setsid "$DEST" >/dev/null 2>&1 &
+
+for _ in $(seq 1 40); do
+  [ -f "$HOME/.config/cafeneurotico/desktop.json" ] && break
+  sleep 1
+done
+
+if [ -f "$HOME/.config/cafeneurotico/desktop.json" ]; then
+  say "Done. The bar should show your library within a few seconds."
+else
+  warn "Installed to $DEST, but it has not registered yet."
+  printf '  Open Cafe Neurotico once and the widget will pick it up.\n'
+fi
+
+printf '\n── press enter to close ──\n'
+read -r _

@@ -32,6 +32,10 @@ omarchy plugin enable io.github.fromchaoscomesclarity.cafeneurotico
 
 Nothing to configure: Cafe Neurotico writes down where it lives and this reads it.
 
+**Do not have Cafe Neurotico yet?** Open the launcher and it says so, and offers to fetch it —
+about 270 MB, downloaded and started in a terminal you can watch and stop. It never installs
+anything in the background.
+
 Bind the launcher to a key in `~/.config/hypr/bindings.lua`:
 
 ```lua

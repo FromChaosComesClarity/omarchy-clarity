@@ -50,6 +50,20 @@ Item {
 
   readonly property string indexScript:
     decodeURIComponent(Qt.resolvedUrl("scripts/cn-index").toString().replace(/^file:\/\//, ""))
+  readonly property string installScript:
+    decodeURIComponent(Qt.resolvedUrl("scripts/cn-install").toString().replace(/^file:\/\//, ""))
+
+  // True when the app is not on this machine at all, as opposed to a library that could not
+  // be read — the difference between "get it" and "something is wrong".
+  readonly property bool appMissing: !root.ready && root.indexError.indexOf("has not been run") !== -1
+
+  // ⚠️ In a terminal, never silently: this downloads ~270 MB and then runs what it fetched.
+  // The app itself hands package installs to a terminal for the same reason.
+  function runInstaller() {
+    root.dismiss()
+    var term = Quickshell.env("TERMINAL") || "xdg-terminal-exec"
+    Quickshell.execDetached([term, "bash", root.installScript])
+  }
 
   // ── Theme ──────────────────────────────────────────────────────────────────
   // Shares the [menu] surface tokens, so a theme that styles the Omarchy menu styles this.
@@ -300,7 +314,8 @@ Item {
             root.selectPage(1)
             event.accepted = true
           } else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
-            root.activate(root.selectedIndex, (event.modifiers & Qt.ShiftModifier) !== 0)
+            if (rowModel.count === 0 && root.appMissing) root.runInstaller()
+            else root.activate(root.selectedIndex, (event.modifiers & Qt.ShiftModifier) !== 0)
             event.accepted = true
           } else if (event.text && event.text.length === 1 && event.text.charCodeAt(0) >= 32 && event.text.charCodeAt(0) !== 127) {
             root.setFilter(root.filterText + event.text)
@@ -696,11 +711,27 @@ Item {
             Text {
               text: root.ready
                 ? "Nothing matches “" + root.filterText + "”"
-                : (root.indexError !== "" ? root.indexError : "Reading the library…")
+                : (root.appMissing
+                   ? "Cafe Neurotico is not installed here"
+                   : (root.indexError !== "" ? root.indexError : "Reading the library…"))
               color: root.foreground
               opacity: 0.7
               font.family: root.fontFamily
               font.pixelSize: Style.font.subtitle
+              horizontalAlignment: Text.AlignHCenter
+              wrapMode: Text.WordWrap
+              width: parent.width
+            }
+
+            // ⚠️ Knowing the app is missing and only saying so is a dead end. This offers the
+            // next step — and says what it will do, because 270 MB and an executable are not
+            // things to start without telling someone.
+            Text {
+              visible: root.appMissing
+              text: "Press ⏎ to fetch it — about 270 MB, in a terminal you can watch"
+              color: root.accent
+              font.family: root.fontFamily
+              font.pixelSize: Style.font.bodySmall
               horizontalAlignment: Text.AlignHCenter
               wrapMode: Text.WordWrap
               width: parent.width

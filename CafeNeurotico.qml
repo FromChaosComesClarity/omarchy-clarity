@@ -126,8 +126,10 @@ BarWidget {
     tooltipText: root.playing !== ""
       ? "Playing " + root.playing + " — click to open the library"
       : (root.installed < 0
-         ? "Cafe Neurotico — cannot read the library database"
-         : root.installed + " games installed — click for the library, middle-click for CREMA")
+         ? (root.appimage === ""
+            ? "Cafe Neurotico is not installed — press ⏎ in the launcher to fetch it"
+            : "Cafe Neurotico — cannot read the library database")
+         : root.installed + " games installed — click for the menu, middle-click for CREMA")
 
     // Left opens the menu — everything the app can do from the bar is one click away
     // rather than one click plus a window. Middle still jumps straight to CREMA, because
