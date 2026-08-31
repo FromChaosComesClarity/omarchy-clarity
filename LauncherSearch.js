@@ -80,7 +80,8 @@ function search(index, query, limit) {
     // The palette's +40: an action you named exactly outranks a game that merely
     // contains the word, because you typed the name of a thing you meant to do.
     rows.push({ kind: "action", id: actions[i].id, name: actions[i].name,
-                badge: "action", installed: false, lastPlayed: 0, score: s + 40 })
+                badge: "action", installed: false, lastPlayed: 0, score: s + 40,
+                cover: "", blurb: "", genre: "", year: "", store: "", playtime: 0 })
   }
 
   for (i = 0; i < games.length; i++) {
@@ -90,10 +91,15 @@ function search(index, query, limit) {
     // ⚠️ The one place this deliberately differs from the in-app palette: an installed
     // game outranks an uninstalled one that scored the same. In the app both are one
     // click from something useful; out here, Enter on the installed one starts playing.
+    // The preview pane's fields ride along on the row rather than being looked up again by
+    // id: the list is rebuilt on every keystroke and a second pass over 877 games to find
+    // the one under the cursor would be work done 877 times to use once.
     rows.push({ kind: "game", id: g.id, name: g.name,
                 badge: g.installed ? "play" : "install",
                 installed: !!g.installed, lastPlayed: g.lastPlayed || 0,
-                score: gs + (g.installed ? 20 : 0) })
+                score: gs + (g.installed ? 20 : 0),
+                cover: g.cover || "", blurb: g.blurb || "", genre: g.genre || "",
+                year: g.year || "", store: g.store || "", playtime: g.playtime || 0 })
   }
 
   if (!q) {
@@ -110,12 +116,13 @@ function search(index, query, limit) {
 function parseIndex(raw) {
   try {
     var data = JSON.parse(String(raw || ""))
-    if (!data || data.ok !== true) return { ok: false, error: (data && data.error) || "no index", games: [], actions: [], exec: "" }
+    if (!data || data.ok !== true) return { ok: false, error: (data && data.error) || "no index", games: [], actions: [], exec: "", version: "" }
     return { ok: true, error: "", exec: String(data.exec || ""),
+             version: String(data.version || ""),
              games: Array.isArray(data.games) ? data.games : [],
              actions: Array.isArray(data.actions) ? data.actions : [] }
   } catch (e) {
-    return { ok: false, error: "unreadable index", games: [], actions: [], exec: "" }
+    return { ok: false, error: "unreadable index", games: [], actions: [], exec: "", version: "" }
   }
 }
 

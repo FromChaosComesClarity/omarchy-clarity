@@ -2,25 +2,34 @@ import Quickshell
 import Quickshell.Io
 import Quickshell.Wayland
 import QtQuick
+import QtQuick.Effects
 import qs.Commons
 import qs.Ui
 import "LauncherSearch.js" as LauncherSearch
 
 // The library, one keystroke away.
 //
-// Omarchy is a place where everything opens from a fuzzy list, and until now the game
-// library was the exception — it was a window you had to go and find. Type three letters
-// here and press Enter and the game starts.
+// Omarchy is a place where everything opens from a fuzzy list, and the game library was the
+// exception — it was a window you had to go and find. Type three letters here and press Enter
+// and the game starts.
 //
-// ⚠️ Nothing is launched from inside this file. Enter spawns Cafe Neurotico with
-// --play=<id>, and the app does what pressing Play does: the multi-store picker, the
-// "which Doom?" and "which engine?" dialogs, the install-state check, the last-played
-// write. A launcher in QML that spawned games itself would be a second implementation of
-// all of that, correct on the day it was written and wrong by the next release.
+// The layout is a launcher on the left and the game on the right: cover, genre, year, how long
+// you have played it, and a sentence about it. Not decoration — it is what tells two games
+// with similar names apart, and what makes a list of 877 rows feel like a library.
 //
-// ⚠️ Every path comes from ~/.config/cafeneurotico/desktop.json, which the app writes on
-// each start. If it is not there, Cafe Neurotico is not installed here and this says so
-// rather than guessing at a path that happens to work on one machine.
+// ⚠️ Every colour, font and radius comes from the Omarchy theme tokens (the [menu] surface,
+// the same one the Omarchy menu uses), so this follows `omarchy theme set` with no palette of
+// its own. Nothing here is hardcoded to look good against one background.
+//
+// ⚠️ Nothing is launched from inside this file. Enter spawns Cafe Neurotico with --play=<id>,
+// and the app does what pressing Play does: the multi-store picker, the "which engine?" and
+// "which Doom?" dialogs, the install-state check, the last-played write. A launcher in QML
+// that spawned games itself would be a second implementation of all of that, correct on the
+// day it was written and wrong by the next release.
+//
+// ⚠️ Every path comes from ~/.config/cafeneurotico/desktop.json, which the app writes on each
+// start. If it is not there, Cafe Neurotico is not installed here and this says so rather
+// than guessing at a path that happens to work on one machine.
 Item {
   id: root
 
@@ -32,8 +41,8 @@ Item {
   property string filterText: ""
   property int selectedIndex: 0
 
-  // The index, as parsed from cn-index. `ready` stays false until a first good read, so
-  // the empty state can tell "nothing matches" apart from "nothing loaded".
+  // The index, as parsed from cn-index. `ready` stays false until a first good read, so the
+  // empty state can tell "nothing matches" apart from "nothing loaded".
   property var index: ({ ok: false, error: "", exec: "", games: [], actions: [] })
   property bool ready: false
   property string indexError: ""
@@ -42,6 +51,7 @@ Item {
   readonly property string indexScript:
     decodeURIComponent(Qt.resolvedUrl("scripts/cn-index").toString().replace(/^file:\/\//, ""))
 
+  // ── Theme ──────────────────────────────────────────────────────────────────
   // Shares the [menu] surface tokens, so a theme that styles the Omarchy menu styles this.
   property color background: Color.menu.background
   property color foreground: Color.menu.text
@@ -50,23 +60,36 @@ Item {
   property color scrim: Color.menu.scrim
   property color selectedBackground: Color.menu.selectedBackground
   property color selectedText: Color.menu.selectedText
+  property color accent: Color.accent
+  property color muted: Color.muted
   readonly property int cornerRadius: Style.cornerRadius
   property string fontFamily: Style.font.menuFamily
+
   property int contentMargin: Style.spacing.panelPadding
-  property int headerHeight: Math.max(Style.space(34), Style.font.title + Style.spacing.controlPaddingY * 2)
+  property int headerHeight: Math.max(Style.space(38), Style.font.heading + Style.spacing.controlPaddingY * 3)
+  property int footerHeight: Math.max(Style.space(20), Style.font.caption + Style.spacing.sm * 2)
   property int contentSpacing: Style.spacing.md
-  property int rowHeight: Math.max(Style.space(34), Style.font.body + Style.spacing.md * 2)
-  property int cardWidth: Math.min(Style.space(620), panel.width - Style.gapsOut * 2)
-  property int cardHeight: Math.min(Style.space(520), panel.height - Style.gapsOut * 2)
+  property int rowHeight: Math.max(Style.space(30), Style.font.body + Style.spacing.lg * 2)
+  property int cardWidth: Math.min(Style.space(1040), panel.width - Style.gapsOut * 2)
+  property int cardHeight: Math.min(Style.space(620), panel.height - Style.gapsOut * 2)
+  // The art column is sized off the cover, not the card: box art is 2:3 and a pane that does
+  // not match it either letterboxes or crops something a person chose to look at.
+  property int artWidth: Math.round(Math.min(Style.space(232), cardWidth * 0.26))
+  property int artHeight: Math.round(artWidth * 1.5)
+  property int previewWidth: artWidth + contentMargin * 2
+
+  // The row under the cursor, as an object, so the preview pane is one binding rather than
+  // six lookups into the model.
+  property var current: null
 
   function open(payloadJson) {
     root.opened = true
     root.filterText = ""
     root.selectedIndex = 0
     root.rebuild()
-    // Re-read on every summon: a game installed since the last one should be playable
-    // now, not after a shell restart. The list on screen is the previous index until the
-    // new one lands, which is a few milliseconds and never a blank card.
+    // Re-read on every summon: a game installed since the last one should be playable now,
+    // not after a shell restart. The list on screen stays the previous index until the new
+    // one lands, which is a few milliseconds and never a blank card.
     refresh()
     Qt.callLater(function() { keyCatcher.forceActiveFocus() })
   }
@@ -93,9 +116,9 @@ Item {
 
   function applyIndex(raw) {
     var parsed = LauncherSearch.parseIndex(raw)
-    // ⚠️ A failed read keeps the last good index. The database is in WAL mode and a
-    // checkpoint mid-read is a busy error, not a library that vanished — dropping the
-    // list on the floor would make the launcher flicker empty while a game installs.
+    // ⚠️ A failed read keeps the last good index. The database is in WAL mode and a checkpoint
+    // mid-read is a busy error, not a library that vanished — dropping the list on the floor
+    // would make the launcher flicker empty while a game installs.
     if (!parsed.ok) {
       root.indexError = parsed.error
       if (!root.ready) root.index = parsed
@@ -108,20 +131,30 @@ Item {
   }
 
   function rebuild() {
-    var result = LauncherSearch.search(root.index, root.filterText, 60)
+    var result = LauncherSearch.search(root.index, root.filterText, 80)
     root.total = result.total
 
     rowModel.clear()
     for (var i = 0; i < result.rows.length; i++) {
       var r = result.rows[i]
-      rowModel.append({ rowKind: r.kind, rowId: String(r.id), rowName: r.name, rowBadge: r.badge })
+      rowModel.append({
+        rowKind: r.kind, rowId: String(r.id), rowName: r.name, rowBadge: r.badge,
+        rowCover: r.cover || "", rowBlurb: r.blurb || "", rowGenre: r.genre || "",
+        rowYear: r.year || "", rowStore: r.store || "", rowPlaytime: r.playtime || 0,
+      })
     }
 
     if (root.selectedIndex >= rowModel.count) root.selectedIndex = Math.max(0, rowModel.count - 1)
     if (root.selectedIndex < 0) root.selectedIndex = 0
+    syncCurrent()
     Qt.callLater(function() {
       if (rowModel.count > 0) resultList.positionViewAtIndex(root.selectedIndex, ListView.Contain)
     })
+  }
+
+  function syncCurrent() {
+    root.current = (root.selectedIndex >= 0 && root.selectedIndex < rowModel.count)
+      ? rowModel.get(root.selectedIndex) : null
   }
 
   function setFilter(nextFilter) {
@@ -134,6 +167,7 @@ Item {
     if (rowModel.count === 0) return
     root.selectedIndex = (root.selectedIndex + delta + rowModel.count) % rowModel.count
     resultList.positionViewAtIndex(root.selectedIndex, ListView.Contain)
+    syncCurrent()
   }
 
   function selectPage(delta) {
@@ -142,14 +176,15 @@ Item {
     var next = root.selectedIndex + delta * visibleRows
     root.selectedIndex = Math.max(0, Math.min(rowModel.count - 1, next))
     resultList.positionViewAtIndex(root.selectedIndex, ListView.Contain)
+    syncCurrent()
   }
 
   // What Enter does, spelled out per row kind:
-  //   an installed game  → play it
+  //   an installed game → play it
   //   a game you own but have not installed → open its page, which is where Install is
-  //   an action          → run it in the app
-  // `openPage` is Shift+Enter on any game: the page rather than the launch, for when you
-  // want the description, the achievements or the Doom the mod should run on.
+  //   an action → run it in the app
+  // `openPage` is Shift+Enter on any game: the page rather than the launch, for when you want
+  // the description, the achievements or the Doom the mod should run on.
   function activate(indexInModel, openPage) {
     if (indexInModel < 0 || indexInModel >= rowModel.count) return
     var row = rowModel.get(indexInModel)
@@ -160,9 +195,35 @@ Item {
     else if (openPage || row.rowBadge !== "play") arg = "--game=" + row.rowId
     else arg = "--play=" + row.rowId
     root.dismiss()
-    // execDetached with an argv array: the path comes out of a file on disk and a space
-    // or a $ in it must never be re-tokenized by a shell.
+    // execDetached with an argv array: the path comes out of a file on disk and a space or a $
+    // in it must never be re-tokenized by a shell.
     Quickshell.execDetached([exec, arg])
+  }
+
+  // ⚠️ A local path becomes a URL, and a library is full of titles with spaces, apostrophes
+  // and the occasional #. encodeURI leaves # alone — where it would be read as a fragment and
+  // silently truncate the path — so it is escaped by hand.
+  function fileUrl(path) {
+    if (!path) return ""
+    return "file://" + encodeURI(String(path)).replace(/#/g, "%23")
+  }
+
+  function playtimeLabel(minutes) {
+    if (!minutes || minutes < 1) return ""
+    if (minutes < 60) return minutes + " min played"
+    var hours = minutes / 60
+    return (hours < 10 ? hours.toFixed(1) : Math.round(hours)) + " h played"
+  }
+
+  // Store strings come out of the library as "Steam, GOG" — the launcher wants the shape of
+  // the line, not the full inventory.
+  function metaLine(row) {
+    if (!row) return ""
+    var bits = []
+    if (row.rowGenre) bits.push(row.rowGenre)
+    if (row.rowYear) bits.push(row.rowYear)
+    if (row.rowStore) bits.push(row.rowStore)
+    return bits.join("  ·  ")
   }
 
   ListModel { id: rowModel }
@@ -176,9 +237,8 @@ Item {
     }
   }
 
-  // Read once at shell start so the first summon paints a full list rather than an empty
-  // card that fills in a moment later. The manifest keeps this plugin loaded for exactly
-  // this reason.
+  // Read once at shell start so the first summon paints a full list rather than an empty card
+  // that fills in a moment later. The manifest keeps this plugin loaded for exactly this.
   Component.onCompleted: refresh()
 
   PanelWindow {
@@ -257,23 +317,55 @@ Item {
         anchors.leftMargin: card.contentLeftInset
         spacing: root.contentSpacing
 
-        // Header: what you typed on the left, how many matched on the right.
+        // ── Header: the cup, what you typed, and how much it matched ──────────
         Item {
           width: parent.width
           height: root.headerHeight
 
           Text {
-            id: filterLine
+            id: mark
             anchors.left: parent.left
+            anchors.verticalCenter: parent.verticalCenter
+            // U+F0176 nf-md-coffee, verified by codepoint — the same mark the bar widget
+            // wears, so the overlay is recognisably the same app.
+            text: "󰅶"
+            color: root.accent
+            font.family: root.fontFamily
+            font.pixelSize: Style.font.heading
+          }
+
+          Text {
+            id: filterLine
+            anchors.left: mark.right
+            anchors.leftMargin: Style.spacing.lg
             anchors.right: countLine.left
             anchors.rightMargin: Style.spacing.md
             anchors.verticalCenter: parent.verticalCenter
             text: root.filterText || "Play something…"
-            color: root.foreground
-            opacity: root.filterText ? 1 : 0.58
+            color: root.filterText ? root.foreground : root.muted
             font.family: root.fontFamily
             font.pixelSize: Style.font.heading
             elide: Text.ElideRight
+          }
+
+          // A caret, because a line of text with no cursor does not read as somewhere you can
+          // type. It blinks only while the card is open, so it costs nothing when it is not.
+          Rectangle {
+            id: caret
+            anchors.left: filterLine.left
+            anchors.leftMargin: Math.min(filterLine.contentWidth + Style.space(2),
+                                         filterLine.width - Style.space(2))
+            anchors.verticalCenter: parent.verticalCenter
+            width: Math.max(1, Style.space(1))
+            height: Style.font.heading
+            color: root.accent
+            visible: root.filterText.length > 0
+            SequentialAnimation on opacity {
+              running: root.opened
+              loops: Animation.Infinite
+              NumberAnimation { to: 0.15; duration: 520; easing.type: Easing.InOutQuad }
+              NumberAnimation { to: 1.0;  duration: 520; easing.type: Easing.InOutQuad }
+            }
           }
 
           Text {
@@ -281,26 +373,41 @@ Item {
             anchors.right: parent.right
             anchors.verticalCenter: parent.verticalCenter
             text: root.total > 0 ? (root.total + (root.total === 1 ? " result" : " results")) : ""
-            color: root.foreground
-            opacity: 0.5
+            color: root.muted
             font.family: root.fontFamily
-            font.pixelSize: Style.font.body
+            font.pixelSize: Style.font.caption
+          }
+
+          Rectangle {
+            anchors.bottom: parent.bottom
+            anchors.left: parent.left
+            anchors.right: parent.right
+            height: Math.max(1, Style.space(1))
+            color: root.foreground
+            opacity: 0.12
           }
         }
 
+        // ── Body: the list, and the game it is pointing at ───────────────────
         Item {
           width: parent.width
-          height: parent.height - root.headerHeight - root.contentSpacing
+          height: parent.height - root.headerHeight - root.footerHeight - root.contentSpacing * 2
 
           ListView {
             id: resultList
-            anchors.fill: parent
+            anchors.left: parent.left
+            anchors.top: parent.top
+            anchors.bottom: parent.bottom
+            anchors.right: preview.visible ? preview.left : parent.right
+            anchors.rightMargin: preview.visible ? Style.spacing.xxl : 0
             model: rowModel
             clip: true
             boundsBehavior: Flickable.StopAtBounds
             visible: rowModel.count > 0
+            spacing: Math.max(1, Style.space(1))
 
-            delegate: Rectangle {
+            delegate: Item {
+              id: rowItem
               required property int index
               required property string rowKind
               required property string rowId
@@ -311,62 +418,275 @@ Item {
 
               width: resultList.width
               height: root.rowHeight
-              radius: root.cornerRadius
-              color: hasCursor ? root.selectedBackground : "transparent"
+
+              Rectangle {
+                anchors.fill: parent
+                radius: root.cornerRadius
+                color: rowItem.hasCursor ? root.selectedBackground : "transparent"
+                Behavior on color { ColorAnimation { duration: 90 } }
+              }
+
+              // The cursor, as a bar rather than a full-width slab: it reads at a glance from
+              // across the room and does not fight the row's own text for contrast.
+              Rectangle {
+                anchors.left: parent.left
+                anchors.verticalCenter: parent.verticalCenter
+                width: Math.max(2, Style.space(2))
+                height: rowItem.hasCursor ? parent.height - Style.space(8) : 0
+                radius: width
+                color: root.accent
+                Behavior on height { NumberAnimation { duration: 110; easing.type: Easing.OutCubic } }
+              }
 
               Text {
                 id: nameText
                 anchors.left: parent.left
-                anchors.leftMargin: Style.spacing.md
-                anchors.right: badgeText.left
+                anchors.leftMargin: Style.spacing.rowPaddingX
+                anchors.right: badge.left
                 anchors.rightMargin: Style.spacing.md
                 anchors.verticalCenter: parent.verticalCenter
-                text: parent.rowName
-                color: parent.hasCursor ? root.selectedText : root.foreground
+                text: rowItem.rowName
+                color: rowItem.hasCursor ? root.selectedText : root.foreground
+                opacity: rowItem.rowBadge === "install" && !rowItem.hasCursor ? 0.72 : 1
                 font.family: root.fontFamily
                 font.pixelSize: Style.font.body
                 elide: Text.ElideRight
               }
 
-              // play / install / action, in the same words the in-app palette uses.
-              Text {
-                id: badgeText
+              // play / install / action — a pill for the one you can act on right now, plain
+              // dim text for the rest, so the eye finds what is playable without reading.
+              Rectangle {
+                id: badge
                 anchors.right: parent.right
-                anchors.rightMargin: Style.spacing.md
+                anchors.rightMargin: Style.spacing.rowPaddingX
                 anchors.verticalCenter: parent.verticalCenter
-                text: parent.rowBadge
-                color: parent.hasCursor ? root.selectedText : root.foreground
-                opacity: parent.rowBadge === "play" ? 0.9 : 0.5
-                font.family: root.fontFamily
-                font.pixelSize: Style.font.small
+                width: badgeText.implicitWidth + Style.spacing.lg * 2
+                height: badgeText.implicitHeight + Style.spacing.xs * 2
+                radius: height / 2
+                color: rowItem.rowBadge === "play" ? root.accent : "transparent"
+                opacity: rowItem.rowBadge === "play" ? (rowItem.hasCursor ? 1 : 0.82) : 1
+
+                Text {
+                  id: badgeText
+                  anchors.centerIn: parent
+                  text: rowItem.rowBadge
+                  color: rowItem.rowBadge === "play" ? root.background : root.muted
+                  font.family: root.fontFamily
+                  font.pixelSize: Style.font.caption
+                }
               }
 
               MouseArea {
                 anchors.fill: parent
                 hoverEnabled: true
                 cursorShape: Qt.PointingHandCursor
-                onContainsMouseChanged: if (containsMouse) root.selectedIndex = index
+                onContainsMouseChanged: if (containsMouse) {
+                  root.selectedIndex = rowItem.index
+                  root.syncCurrent()
+                }
                 onClicked: function(mouse) {
-                  root.selectedIndex = index
-                  root.activate(index, (mouse.modifiers & Qt.ShiftModifier) !== 0)
+                  root.selectedIndex = rowItem.index
+                  root.syncCurrent()
+                  root.activate(rowItem.index, (mouse.modifiers & Qt.ShiftModifier) !== 0)
                 }
               }
             }
           }
 
-          // Three different nothings, and they are not the same message: the app was
-          // never run here, the library could not be read, or you typed something no
-          // game matches.
+          // The list does not stop at a row boundary, so without this it ends on a sliced
+          // one and reads as a rendering fault rather than as more to scroll to.
+          Rectangle {
+            anchors.left: resultList.left
+            anchors.right: resultList.right
+            anchors.bottom: resultList.bottom
+            height: root.rowHeight
+            visible: resultList.visible && resultList.contentHeight > resultList.height
+            gradient: Gradient {
+              GradientStop { position: 0.0; color: "transparent" }
+              GradientStop { position: 1.0; color: root.background }
+            }
+          }
+
+          // A hairline between the two halves: the preview belongs to the row the cursor is
+          // on, and a shared edge says that more quietly than a gap does.
+          Rectangle {
+            anchors.right: preview.left
+            anchors.rightMargin: Style.spacing.lg
+            anchors.top: parent.top
+            anchors.bottom: parent.bottom
+            width: Math.max(1, Style.space(1))
+            visible: preview.visible
+            color: root.foreground
+            opacity: 0.1
+          }
+
+          // ── The game itself ──────────────────────────────────────────────
+          Item {
+            id: preview
+            anchors.right: parent.right
+            anchors.top: parent.top
+            anchors.bottom: parent.bottom
+            width: root.previewWidth
+            visible: rowModel.count > 0 && root.current !== null && root.cardWidth > Style.space(620)
+            opacity: root.current ? 1 : 0
+            Behavior on opacity { NumberAnimation { duration: 120 } }
+
+            // ⚠️ Anchors, not a Column. A Column is as tall as its children, so a long
+            // description simply ran past the bottom of the card and through the footer.
+            // Here the art and the three label lines take what they need from the top and
+            // the blurb is given exactly the space that is left, clipped to it.
+            Item {
+              id: previewBody
+              anchors.fill: parent
+              anchors.leftMargin: (parent.width - root.artWidth) / 2
+              anchors.rightMargin: (parent.width - root.artWidth) / 2
+
+              // Cover art, rounded with the same MultiEffect mask the shell's own image
+              // picker uses — a Rectangle's radius does not clip its children.
+              Item {
+                id: artFrame
+                anchors.top: parent.top
+                anchors.left: parent.left
+                width: root.artWidth
+                height: root.artHeight
+                visible: root.current !== null && root.current.rowKind === "game"
+
+                Rectangle {
+                  id: artMask
+                  anchors.fill: parent
+                  radius: root.cornerRadius > 0 ? root.cornerRadius * 2 : Style.space(6)
+                  visible: false
+                  layer.enabled: true
+                }
+
+                Rectangle {
+                  anchors.fill: parent
+                  radius: artMask.radius
+                  color: root.foreground
+                  opacity: 0.05
+                }
+
+                Image {
+                  id: art
+                  anchors.fill: parent
+                  source: root.current && root.current.rowCover ? root.fileUrl(root.current.rowCover) : ""
+                  fillMode: Image.PreserveAspectCrop
+                  asynchronous: true
+                  cache: true
+                  smooth: true
+                  visible: status === Image.Ready
+                  sourceSize.width: root.artWidth * 2
+                  layer.enabled: true
+                  layer.effect: MultiEffect {
+                    maskEnabled: true
+                    maskSource: artMask
+                    maskThresholdMin: 0.3
+                    maskSpreadAtMin: 0.3
+                  }
+                }
+
+                // No cover is common enough (a custom install, a fan game) that it needs to
+                // look deliberate rather than broken.
+                Text {
+                  anchors.centerIn: parent
+                  visible: art.status !== Image.Ready
+                  text: "󰅶"
+                  color: root.foreground
+                  opacity: 0.25
+                  font.family: root.fontFamily
+                  font.pixelSize: Style.font.displayLarge
+                }
+
+                Rectangle {
+                  anchors.fill: parent
+                  radius: artMask.radius
+                  color: "transparent"
+                  border.width: Math.max(1, Style.space(1))
+                  border.color: root.foreground
+                  opacity: 0.14
+                }
+              }
+
+              Text {
+                id: previewTitle
+                anchors.top: artFrame.visible ? artFrame.bottom : parent.top
+                anchors.topMargin: Style.spacing.xl
+                anchors.left: parent.left
+                anchors.right: parent.right
+                text: root.current ? root.current.rowName : ""
+                color: root.foreground
+                font.family: root.fontFamily
+                font.pixelSize: Style.font.subtitle
+                font.bold: true
+                wrapMode: Text.WordWrap
+                maximumLineCount: 2
+                elide: Text.ElideRight
+              }
+
+              Text {
+                id: previewMeta
+                anchors.top: previewTitle.bottom
+                anchors.topMargin: Style.spacing.sm
+                anchors.left: parent.left
+                anchors.right: parent.right
+                visible: text !== ""
+                text: root.current && root.current.rowKind === "game"
+                  ? root.metaLine(root.current)
+                  : (root.current ? "Runs in Cafe Neurotico" : "")
+                color: root.accent
+                opacity: 0.85
+                font.family: root.fontFamily
+                font.pixelSize: Style.font.caption
+                wrapMode: Text.WordWrap
+                maximumLineCount: 2
+                elide: Text.ElideRight
+              }
+
+              Text {
+                id: previewPlaytime
+                anchors.top: previewMeta.visible ? previewMeta.bottom : previewTitle.bottom
+                anchors.topMargin: previewMeta.visible ? Style.spacing.xs : Style.spacing.sm
+                anchors.left: parent.left
+                anchors.right: parent.right
+                visible: text !== ""
+                text: root.current ? root.playtimeLabel(root.current.rowPlaytime) : ""
+                color: root.muted
+                font.family: root.fontFamily
+                font.pixelSize: Style.font.caption
+              }
+
+              Text {
+                anchors.top: previewPlaytime.visible ? previewPlaytime.bottom : previewMeta.bottom
+                anchors.topMargin: Style.spacing.lg
+                anchors.left: parent.left
+                anchors.right: parent.right
+                anchors.bottom: parent.bottom
+                visible: text !== ""
+                clip: true
+                text: root.current && root.current.rowKind === "game" ? root.current.rowBlurb : ""
+                color: root.foreground
+                opacity: 0.8
+                font.family: root.fontFamily
+                font.pixelSize: Style.font.bodySmall
+                wrapMode: Text.WordWrap
+                elide: Text.ElideRight
+                lineHeight: 1.3
+              }
+            }
+          }
+
+          // Three different nothings, and they are not the same message: the app was never run
+          // here, the library could not be read, or you typed something no game matches.
           Column {
             anchors.centerIn: parent
-            spacing: Style.space(8)
+            spacing: Style.spacing.xl
             width: parent.width
             visible: rowModel.count === 0
 
             Text {
               text: root.ready ? "󰈉" : "󰅶"
-              color: root.selectedText
-              opacity: 0.8
+              color: root.foreground
+              opacity: 0.3
               font.family: root.fontFamily
               font.pixelSize: Style.font.displayLarge
               horizontalAlignment: Text.AlignHCenter
@@ -375,16 +695,50 @@ Item {
 
             Text {
               text: root.ready
-                ? "No matches for “" + root.filterText + "”"
+                ? "Nothing matches “" + root.filterText + "”"
                 : (root.indexError !== "" ? root.indexError : "Reading the library…")
               color: root.foreground
               opacity: 0.7
               font.family: root.fontFamily
-              font.pixelSize: Style.font.title
+              font.pixelSize: Style.font.subtitle
               horizontalAlignment: Text.AlignHCenter
               wrapMode: Text.WordWrap
               width: parent.width
             }
+          }
+        }
+
+        // ── Footer: what the keys do ─────────────────────────────────────────
+        Item {
+          width: parent.width
+          height: root.footerHeight
+
+          Rectangle {
+            anchors.top: parent.top
+            anchors.left: parent.left
+            anchors.right: parent.right
+            height: Math.max(1, Style.space(1))
+            color: root.foreground
+            opacity: 0.12
+          }
+
+          Text {
+            anchors.left: parent.left
+            anchors.bottom: parent.bottom
+            text: "↑↓ move    ⏎ play    ⇧⏎ open page    esc close"
+            color: root.muted
+            font.family: root.fontFamily
+            font.pixelSize: Style.font.caption
+          }
+
+          Text {
+            anchors.right: parent.right
+            anchors.bottom: parent.bottom
+            text: root.index.version ? "cafe neurotico " + root.index.version : "cafe neurotico"
+            color: root.muted
+            opacity: 0.6
+            font.family: root.fontFamily
+            font.pixelSize: Style.font.caption
           }
         }
       }

@@ -15,6 +15,7 @@ Usage: cn-index [descriptor.json]
 
 import json
 import os
+import re
 import sqlite3
 import sys
 
@@ -31,7 +32,47 @@ def fail(message):
     sys.exit(0)          # a shell plugin's backend reports trouble in-band; it never crashes
 
 
-def read_games(db_path):
+# ⚠️ Cover paths are stored RELATIVE to the app's data directory ("GameManagerConfig/images/
+# Quake - Cover.jpg"), and the descriptor is the only thing that knows where that is. An
+# absolute path is left alone — some rows carry one — and anything that is not actually a
+# file on disk comes back empty rather than as a broken image.
+def resolve_art(value, base_dir):
+    raw = str(value or "").strip()
+    if not raw:
+        return ""
+    path = raw if os.path.isabs(raw) else os.path.join(base_dir or "", raw)
+    return path if os.path.isfile(path) else ""
+
+
+# A launcher shows a sentence, not a press release: descriptions here run to 4,000 characters
+# and average 250. Cut at a sentence end when there is one nearby, so the panel does not end
+# mid-word — and cut in the index rather than in QML, because this JSON is parsed on every
+# summon and the other 3,700 characters would be carried for nothing.
+def blurb(value, limit=260):
+    text = " ".join(str(value or "").split())
+    if len(text) <= limit:
+        return text
+    cut = text[:limit]
+    stop = max(cut.rfind(". "), cut.rfind("! "), cut.rfind("? "))
+    if stop > limit * 0.55:
+        return cut[:stop + 1]
+    return cut[:cut.rfind(" ") if " " in cut else limit].rstrip(",;:-") + "\u2026"
+
+
+def first_genre(value):
+    # GENRE is a comma-joined list and the first one is the one the app treats as primary.
+    return str(value or "").split(",")[0].strip()
+
+
+def year_of(value):
+    # RELEASED is free text across stores ("2016", "Jun 13, 2016", ""), so take the first
+    # plausible year rather than trying to parse a date that has no agreed format.
+    for token in re.findall(r"\b(19\d{2}|20\d{2})\b", str(value or "")):
+        return token
+    return ""
+
+
+def read_games(db_path, base_dir):
     # ⚠️ Read-only, and immutable=0 so a live writer is never blocked and WAL content is
     # still visible. A checkpoint in progress yields a busy error rather than a wrong
     # answer — hence the timeout, and the caller keeping its previous index on failure.
@@ -41,7 +82,8 @@ def read_games(db_path):
         con.execute("PRAGMA busy_timeout = 2000")
         rows = con.execute(
             """
-            SELECT id, Game, Store, LaunchCommand, Installed, LastPlayed
+            SELECT id, Game, Store, LaunchCommand, Installed, LastPlayed,
+                   CoverArt, Description, GENRE, RELEASED, Playtime
               FROM games
              WHERE Game IS NOT NULL AND TRIM(Game) <> '' AND Game <> 'null'
                AND COALESCE(Hidden, 0) <> 1
@@ -52,7 +94,8 @@ def read_games(db_path):
         con.close()
 
     games = []
-    for gid, title, store, launch, installed, last_played in rows:
+    for (gid, title, store, launch, installed, last_played,
+         cover, description, genre, released, playtime) in rows:
         # The same rule as the app's isGameInstalled(): a launch command, and either no
         # install flag at all (rows that predate the column) or one that says installed.
         playable = bool(launch and str(launch).strip()) and (installed is None or installed == 1)
@@ -62,6 +105,11 @@ def read_games(db_path):
             "store": str(store or ""),
             "installed": playable,
             "lastPlayed": int(last_played or 0),
+            "cover": resolve_art(cover, base_dir),
+            "blurb": blurb(description),
+            "genre": first_genre(genre),
+            "year": year_of(released),
+            "playtime": int(playtime or 0),
         })
     return games
 
@@ -81,7 +129,7 @@ def main():
         fail("the library database named by the descriptor is not there")
 
     try:
-        games = read_games(library)
+        games = read_games(library, desc.get("baseDir") or "")
     except Exception as exc:                                  # noqa: BLE001
         fail("cannot read the library: %s" % exc)
 

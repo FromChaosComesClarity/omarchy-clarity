@@ -11,6 +11,8 @@ installed, what is running right now, and a fuzzy launcher that starts any of th
 **The launcher** (an overlay, bind it to a key — see below)
 
 - Type a few letters of a game's name, press **Enter**, play it
+- The game you are pointing at shows its **cover, genre, year, store, hours played and a
+  sentence about it** — which is what tells two games with similar names apart
 - **Shift+Enter** opens the game's page instead — for the description, the
   achievements, or the Doom a mod should run on
 - A game you own but have not installed opens its page too, which is where the
@@ -50,7 +52,13 @@ Three facts, gathered very differently:
   you play — asking it would give the wrong answer for the case this widget
   exists to show.
 - **What is installed** comes from the app's databases, re-read only when they
-  change. Nothing here walks a filesystem.
+  change. Nothing here walks a filesystem. Cover art is read from the path the library
+  already stores, resolved against the app's own data directory — nothing is downloaded and
+  no second copy of your artwork is made.
+
+Every colour, font and corner radius comes from the Omarchy theme tokens (the same `[menu]`
+surface the Omarchy menu uses), so `omarchy theme set` restyles this too. There is no palette
+of its own to fall out of step.
 
 Nothing is launched from inside this plugin. Enter spawns Cafe Neurotico with
 `--play=<id>`, and the app does exactly what pressing Play does: the multi-store
