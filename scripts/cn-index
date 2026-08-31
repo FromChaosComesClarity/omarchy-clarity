@@ -1,0 +1,104 @@
+#!/usr/bin/env python3
+"""Print Cafe Neurotico's library and actions as one JSON object, for the launcher overlay.
+
+⚠️ Nothing here is guessed. The app writes ~/.config/cafeneurotico/desktop.json on every
+start — which binary it is, where its two databases are, and which command-palette actions
+this build has — and this reads that. A plugin that derived its own paths would be a second
+consumer computing its own answer, which is exactly how the library got orphaned once
+before (the two-grinder.db split), and hardcoded paths only ever work on one machine.
+
+If the descriptor is missing the answer is `ok: false`, never a guessed path: it means
+Cafe Neurotico is not installed, or has not been run since the version that writes it.
+
+Usage: cn-index [descriptor.json]
+"""
+
+import json
+import os
+import sqlite3
+import sys
+
+
+def descriptor_path():
+    if len(sys.argv) > 1 and sys.argv[1]:
+        return sys.argv[1]
+    config = os.environ.get("XDG_CONFIG_HOME") or os.path.join(os.path.expanduser("~"), ".config")
+    return os.path.join(config, "cafeneurotico", "desktop.json")
+
+
+def fail(message):
+    print(json.dumps({"ok": False, "error": message, "games": [], "actions": []}))
+    sys.exit(0)          # a shell plugin's backend reports trouble in-band; it never crashes
+
+
+def read_games(db_path):
+    # ⚠️ Read-only, and immutable=0 so a live writer is never blocked and WAL content is
+    # still visible. A checkpoint in progress yields a busy error rather than a wrong
+    # answer — hence the timeout, and the caller keeping its previous index on failure.
+    uri = "file:" + db_path.replace("?", "%3f").replace("#", "%23") + "?mode=ro&immutable=0"
+    con = sqlite3.connect(uri, uri=True, timeout=2.0)
+    try:
+        con.execute("PRAGMA busy_timeout = 2000")
+        rows = con.execute(
+            """
+            SELECT id, Game, Store, LaunchCommand, Installed, LastPlayed
+              FROM games
+             WHERE Game IS NOT NULL AND TRIM(Game) <> '' AND Game <> 'null'
+               AND COALESCE(Hidden, 0) <> 1
+             ORDER BY Game COLLATE NOCASE ASC
+            """
+        ).fetchall()
+    finally:
+        con.close()
+
+    games = []
+    for gid, title, store, launch, installed, last_played in rows:
+        # The same rule as the app's isGameInstalled(): a launch command, and either no
+        # install flag at all (rows that predate the column) or one that says installed.
+        playable = bool(launch and str(launch).strip()) and (installed is None or installed == 1)
+        games.append({
+            "id": int(gid),
+            "name": str(title),
+            "store": str(store or ""),
+            "installed": playable,
+            "lastPlayed": int(last_played or 0),
+        })
+    return games
+
+
+def main():
+    path = descriptor_path()
+    try:
+        with open(path, "r", encoding="utf-8") as fh:
+            desc = json.load(fh)
+    except FileNotFoundError:
+        fail("Cafe Neurotico has not been run on this machine yet")
+    except Exception as exc:                                  # noqa: BLE001 — any unreadable descriptor is the same story
+        fail("cannot read %s: %s" % (path, exc))
+
+    library = desc.get("libraryDb")
+    if not library or not os.path.isfile(library):
+        fail("the library database named by the descriptor is not there")
+
+    try:
+        games = read_games(library)
+    except Exception as exc:                                  # noqa: BLE001
+        fail("cannot read the library: %s" % exc)
+
+    actions = [
+        {"id": str(a.get("id")), "name": str(a.get("name"))}
+        for a in (desc.get("actions") or [])
+        if isinstance(a, dict) and a.get("id") and a.get("name")
+    ]
+
+    print(json.dumps({
+        "ok": True,
+        "exec": desc.get("exec") or "",
+        "version": desc.get("version") or "",
+        "games": games,
+        "actions": actions,
+    }))
+
+
+if __name__ == "__main__":
+    main()

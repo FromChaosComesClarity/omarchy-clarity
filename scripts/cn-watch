@@ -1,41 +1,73 @@
 #!/usr/bin/env bash
 # Stream Cafe Neurotico's library state to stdout, one JSON object per line.
 #
-# Two facts, and they are gathered very differently:
+# Three facts, and they are gathered very differently:
 #
-#   what is RUNNING  — from the compositor, not from the app. Cafe Neurotico is
-#     not necessarily open while a game is, and asking the app would mean it had
-#     to be running to answer. Hyprland always knows what windows exist.
+#   where the app IS  — from ~/.config/cafeneurotico/desktop.json, which the app rewrites
+#     on every start: which binary to run and where its databases are. ⚠️ Never derived
+#     here and never hardcoded. A second consumer computing its own grinder.db path is
+#     exactly how the library got orphaned once before (the two-grinder.db split), and a
+#     hardcoded path only works on the machine it was typed on.
+#
+#   what is RUNNING  — from the compositor, not from the app. Cafe Neurotico is not
+#     necessarily open while a game is, and asking the app would mean it had to be running
+#     to answer. Hyprland always knows what windows exist.
 #
 #   what is INSTALLED — from grinder.db, re-read only when its mtime changes.
-#     ⚠️ A game directory can be large and this loop is every few seconds, so the
-#     count is cached; nothing here walks a filesystem.
+#     ⚠️ A game directory can be large and this loop is every few seconds, so the count is
+#     cached; nothing here walks a filesystem.
 #
-# ⚠️ The database path is passed in, never derived. Cafe Neurotico resolves it
-# through host.findGrinderDb(), and a second consumer computing its own path is
-# precisely how the library got orphaned once before (the two-grinder.db split).
-# If the file is not there, this reports installed:null rather than guessing.
+# ⚠️ WAL mode: grinder.db is opened read-only with immutable=0 so a live writer is never
+# blocked, and a busy timeout so a checkpoint in progress yields a stale count for one
+# tick instead of an error.
 #
-# ⚠️ WAL mode: grinder.db is opened read-only with immutable=0 so a live writer
-# is never blocked, and a busy timeout so a checkpoint in progress yields a stale
-# count for one tick instead of an error.
+# Usage: cn-watch [grinder.db override] [interval seconds]
+#   An empty first argument means "ask the descriptor", which is the normal case.
 
-db="${1:-$HOME/.config/grinder/grinder.db}"
+db_override="${1:-}"
 interval="${2:-3}"
 
-# Games launched through umu/Proton all arrive as steam_app_*; the rest are the
-# native engines the custom installers set up. Kept in step with the app's own
-# GAME_CLASS_RE in packages/core/omarchy.js — if that list grows, this follows.
+descriptor="${XDG_CONFIG_HOME:-$HOME/.config}/cafeneurotico/desktop.json"
+
+# Games launched through umu/Proton all arrive as steam_app_*; the rest are the native
+# engines the custom installers set up. Kept in step with the app's own GAME_CLASS_RE in
+# packages/core/omarchy.js — if that list grows, this follows.
 game_class='^(steam_app_.*|dosbox.*|scummvm|openbor|gzdoom|uzdoom|ironwail|vkquake|quake.*|raze|buildgdx|ecwolf|cannonball)$'
 
 installed=null
+exec_path=""
+db=""
 db_stamp=""
+desc_stamp=""
 
 json_escape() { printf '%s' "$1" | python3 -c 'import json,sys; print(json.dumps(sys.stdin.read()))'; }
 
+read_descriptor() {
+  # Prints "<exec>\t<grinderDb>". Missing file, bad JSON and missing keys all come back
+  # empty, which the loop reports as "cannot read the library" rather than a guess.
+  python3 - "$descriptor" <<'PY' 2>/dev/null
+import json, sys
+try:
+    with open(sys.argv[1], "r", encoding="utf-8") as fh:
+        d = json.load(fh)
+except Exception:
+    d = {}
+print("%s\t%s" % (d.get("exec") or "", d.get("grinderDb") or ""))
+PY
+}
+
 while true; do
+  # ── where the app is, re-read when the descriptor changes ──────────────────
+  stamp=$(stat -c '%Y-%s' "$descriptor" 2>/dev/null)
+  if [ "$stamp" != "$desc_stamp" ]; then
+    desc_stamp="$stamp"
+    IFS=$'\t' read -r exec_path desc_db <<<"$(read_descriptor)"
+    db="${db_override:-$desc_db}"
+    db_stamp=""                       # a new descriptor may name a different database
+  fi
+
   # ── installed count, only when the database actually changed ──────────────
-  if [ -r "$db" ]; then
+  if [ -n "$db" ] && [ -r "$db" ]; then
     stamp=$(stat -c '%Y-%s' "$db" 2>/dev/null)
     if [ "$stamp" != "$db_stamp" ]; then
       db_stamp="$stamp"
@@ -69,9 +101,9 @@ for c in cs:
 ' "$game_class" 2>/dev/null)
 
   if [ -n "$playing" ]; then
-    printf '{"installed":%s,"playing":%s}\n' "$installed" "$(json_escape "$playing")"
+    printf '{"installed":%s,"playing":%s,"exec":%s}\n' "$installed" "$(json_escape "$playing")" "$(json_escape "$exec_path")"
   else
-    printf '{"installed":%s,"playing":null}\n' "$installed"
+    printf '{"installed":%s,"playing":null,"exec":%s}\n' "$installed" "$(json_escape "$exec_path")"
   fi
 
   sleep "$interval"

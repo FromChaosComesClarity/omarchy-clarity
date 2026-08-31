@@ -19,9 +19,17 @@ BarWidget {
   id: root
   objectName: "cafeNeuroticoWidget"
 
-  readonly property string appimage: setting("appimage", "/home/jose/Games/CNGM/CafeNeurotico.AppImage")
-  readonly property string database: setting("database", "/home/jose/.config/grinder/grinder.db")
+  // ⚠️ Both paths default to empty on purpose: the app writes its own location and its
+  // database path to ~/.config/cafeneurotico/desktop.json on every start, and the backend
+  // reads them there. A setting is an override for an unusual install, never the normal
+  // way this finds the app — a hardcoded path works on exactly one machine.
+  readonly property string appimageOverride: setting("appimage", "")
+  readonly property string databaseOverride: setting("database", "")
   readonly property int interval: setting("interval", 3)
+
+  // Where the app actually is: the override if one was set, otherwise whatever the
+  // running backend last read out of the descriptor.
+  readonly property string appimage: appimageOverride !== "" ? appimageOverride : reportedExec
 
   // Qt.resolvedUrl gives a file:// URL; the shell wants a plain path, and the
   // plugin directory is user-named, so the percent-decoding is not optional.
@@ -30,6 +38,7 @@ BarWidget {
 
   property int installed: -1        // -1 = not known yet, not "zero games"
   property string playing: ""
+  property string reportedExec: ""
 
   implicitWidth: button.implicitWidth
   implicitHeight: button.implicitHeight
@@ -49,11 +58,13 @@ BarWidget {
     root.installed = (data.installed === null || data.installed === undefined)
       ? -1 : Number(data.installed)
     root.playing = data.playing ? String(data.playing) : ""
+    root.reportedExec = data.exec ? String(data.exec) : ""
   }
 
-  // execArgv and not execDetached: `appimage` comes from user settings, and the
-  // argv form keeps a path with a space or a $ in it from being re-tokenized.
+  // execArgv and not execDetached: `appimage` is a path read off disk, and the argv form
+  // keeps one with a space or a $ in it from being re-tokenized by a shell.
   function open(args) {
+    if (root.appimage === "") return      // not installed here, or never run: do nothing
     Util.execArgv([root.appimage].concat(args || []))
   }
 
@@ -90,7 +101,7 @@ BarWidget {
   }
 
   Process {
-    command: ["bash", root.watchScript, root.database, String(root.interval)]
+    command: ["bash", root.watchScript, root.databaseOverride, String(root.interval)]
     running: true
     stdout: SplitParser {
       onRead: function(line) { root.apply(line) }

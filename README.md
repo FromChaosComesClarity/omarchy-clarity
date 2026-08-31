@@ -1,10 +1,23 @@
-# Cafe Neurotico — Omarchy bar widget
+# Cafe Neurotico — Omarchy bar widget and game launcher
 
-Your game library in the Omarchy bar: how many games are installed, and what is
-running right now.
+Your game library in the Omarchy bar, and one keystroke away: how many games are
+installed, what is running right now, and a fuzzy launcher that starts any of them.
+
+**In the bar**
 
 - **Left click** — open Cafe Neurotico (the Manager)
 - **Middle click** — open CREMA, the fullscreen couch face
+
+**The launcher** (an overlay, bind it to a key — see below)
+
+- Type a few letters of a game's name, press **Enter**, play it
+- **Shift+Enter** opens the game's page instead — for the description, the
+  achievements, or the Doom a mod should run on
+- A game you own but have not installed opens its page too, which is where the
+  Install button is
+- The app's own command-palette actions are in the same list, so *Control Panel*,
+  *Themes* and *Manage Storage* are the same gesture as *Quake*
+- With nothing typed it opens on what you played last
 
 ## Install
 
@@ -13,30 +26,49 @@ omarchy plugin add https://github.com/FromChaosComesClarity/omarchy-cafeneurotic
 omarchy plugin enable io.github.fromchaoscomesclarity.cafeneurotico
 ```
 
-Then set the AppImage path in the widget's settings if yours is not at
-`~/Games/CNGM/CafeNeurotico.AppImage`.
+Nothing to configure: Cafe Neurotico writes down where it lives and this reads it.
+
+Bind the launcher to a key in `~/.config/hypr/bindings.lua`:
+
+```lua
+o.bind("SUPER + CTRL + G", "Game launcher", "omarchy-shell shell toggle io.github.fromchaoscomesclarity.cafeneurotico")
+```
 
 ## How it works
 
-Two facts, gathered very differently:
+Three facts, gathered very differently:
 
+- **Where the app is** comes from `~/.config/cafeneurotico/desktop.json`, which
+  Cafe Neurotico rewrites on every start: which binary to run, where its two
+  databases are, and which palette actions this build has. Nothing here derives a
+  path or hardcodes one — a second consumer computing its own answer is how the
+  library got orphaned once before, and a hardcoded path works on exactly one
+  machine. No descriptor means the app is not installed here, and this says so
+  rather than guessing.
 - **What is playing** comes from Hyprland, not from the app. Cafe Neurotico
   launches a game and gets out of the way, so it is usually not running while
   you play — asking it would give the wrong answer for the case this widget
   exists to show.
-- **What is installed** comes from `grinder.db`, re-read only when the file
-  changes. Nothing here walks a filesystem.
+- **What is installed** comes from the app's databases, re-read only when they
+  change. Nothing here walks a filesystem.
 
-The database path is a setting, never derived. Cafe Neurotico resolves it
-through its own platform layer, and a second consumer computing its own path is
-how the library got orphaned once before.
+Nothing is launched from inside this plugin. Enter spawns Cafe Neurotico with
+`--play=<id>`, and the app does exactly what pressing Play does: the multi-store
+picker, the "which engine?" and "which Doom?" dialogs, the install-state check,
+the last-played write. A launcher that spawned games itself would be a second
+implementation of all of that, correct on the day it was written and wrong by the
+next release. The fuzzy scorer is likewise the app's own, character for character,
+so the in-app palette and this overlay rank a query identically.
 
-The widget only watches and pokes. If the bar restarts, the plugin is disabled,
-or the QML fails outright, you lose the icon and nothing else.
+The plugin only watches and pokes. If the bar restarts, the plugin is disabled, or
+the QML fails outright, you lose the icon and nothing else — the library, the
+launcher and every game keep working exactly as before.
 
 ## Requires
 
-`sqlite3`, `hyprctl`, `python3` — all present on a stock Omarchy.
+A Cafe Neurotico **newer than 1.10.0** — the descriptor this reads landed after that
+release, and older builds do not write one — plus
+`sqlite3`, `hyprctl` and `python3` — all present on a stock Omarchy.
 
 ## License
 
