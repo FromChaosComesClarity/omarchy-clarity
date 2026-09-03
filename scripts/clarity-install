@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Fetch and set up Cafe Neurotico, for someone who installed this plugin first.
+# Fetch and set up Clarity, for someone who installed this plugin first.
 #
 # ⚠️ This runs in a TERMINAL, never in the background. It downloads roughly 270 MB and then
 # runs an executable it just fetched: a bar widget doing that silently gives you no progress,
@@ -7,14 +7,14 @@
 # itself does for package installs, and it is what a marketplace reviewer should expect.
 #
 # ⚠️ NOT `/releases/latest`. GitHub excludes pre-releases from that endpoint and every
-# experimental Cafe Neurotico build is a pre-release — measured 2026-08-31, `/releases/latest`
+# experimental Clarity build is a pre-release — measured 2026-08-31, `/releases/latest`
 # returns v1.9.3, which does NOT write the descriptor this plugin reads. Installing that would
 # leave the bar saying "not installed" forever, having just installed the app. So: walk
 # /releases and take the newest release carrying an .AppImage asset.
 
 set -uo pipefail
 
-REPO="FromChaosComesClarity/CafeNeurotico"
+REPO="FromChaosComesClarity/Clarity"
 API="https://api.github.com/repos/$REPO/releases"
 
 say()  { printf '\033[36m%s\033[0m\n' "$*"; }
@@ -27,7 +27,7 @@ command -v python3 >/dev/null || die "python3 is needed and is not installed."
 cat <<'BANNER'
 
   ┌──────────────────────────────────────────────┐
-  │  CAFE NEUROTICO                              │
+  │  CLARITY                              │
   │  the game center for Omarchy                 │
   └──────────────────────────────────────────────┘
 
@@ -36,7 +36,7 @@ BANNER
 # ⚠️ The AppImage's own folder becomes the app's data directory — the library, the artwork and
 # the settings all land beside it. That makes this a real choice, so it is offered rather than
 # decided silently.
-DEFAULT_DIR="$HOME/Games/CafeNeurotico"
+DEFAULT_DIR="$HOME/Games/Clarity"
 say "Where should it live?"
 printf '  The library, artwork and settings are kept beside the AppImage.\n'
 printf '  [%s]\n  > ' "$DEFAULT_DIR"
@@ -65,9 +65,9 @@ sys.exit(1)
 [ -n "${URL:-}" ] || die "No AppImage found in any release."
 say "Found $TAG"
 
-DEST="$TARGET_DIR/CafeNeurotico.AppImage"
+DEST="$TARGET_DIR/Clarity.AppImage"
 if [ -e "$DEST" ]; then
-  warn "There is already a CafeNeurotico.AppImage in $TARGET_DIR."
+  warn "There is already a Clarity.AppImage in $TARGET_DIR."
   printf '  Replace it? [y/N] '
   read -r reply
   case "$reply" in [yY]*) ;; *) die "Left it alone. Nothing was changed." ;; esac
@@ -84,20 +84,20 @@ chmod +x "$DEST"     || die "Downloaded, but could not make it executable."
 
 say ""
 say "Starting it once so it can register itself…"
-printf '  The bar widget reads ~/.config/cafeneurotico/desktop.json, which the app writes on\n'
+printf '  The bar widget reads ~/.config/clarity/desktop.json, which the app writes on\n'
 printf '  every start. Until it has run once, the widget has nothing to read.\n\n'
 setsid "$DEST" >/dev/null 2>&1 &
 
 for _ in $(seq 1 40); do
-  [ -f "$HOME/.config/cafeneurotico/desktop.json" ] && break
+  [ -f "$HOME/.config/clarity/desktop.json" ] && break
   sleep 1
 done
 
-if [ -f "$HOME/.config/cafeneurotico/desktop.json" ]; then
+if [ -f "$HOME/.config/clarity/desktop.json" ]; then
   say "Done. The bar should show your library within a few seconds."
 else
   warn "Installed to $DEST, but it has not registered yet."
-  printf '  Open Cafe Neurotico once and the widget will pick it up.\n'
+  printf '  Open Clarity once and the widget will pick it up.\n'
 fi
 
 printf '\n── press enter to close ──\n'

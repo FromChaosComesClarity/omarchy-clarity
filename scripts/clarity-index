@@ -1,16 +1,16 @@
 #!/usr/bin/env python3
-"""Print Cafe Neurotico's library and actions as one JSON object, for the launcher overlay.
+"""Print Clarity's library and actions as one JSON object, for the launcher overlay.
 
-⚠️ Nothing here is guessed. The app writes ~/.config/cafeneurotico/desktop.json on every
+⚠️ Nothing here is guessed. The app writes ~/.config/clarity/desktop.json on every
 start — which binary it is, where its two databases are, and which command-palette actions
 this build has — and this reads that. A plugin that derived its own paths would be a second
 consumer computing its own answer, which is exactly how the library got orphaned once
-before (the two-grinder.db split), and hardcoded paths only ever work on one machine.
+before (the two-library.db split), and hardcoded paths only ever work on one machine.
 
 If the descriptor is missing the answer is `ok: false`, never a guessed path: it means
-Cafe Neurotico is not installed, or has not been run since the version that writes it.
+Clarity is not installed, or has not been run since the version that writes it.
 
-Usage: cn-index [descriptor.json]
+Usage: clarity-index [descriptor.json]
 """
 
 import json
@@ -24,7 +24,7 @@ def descriptor_path():
     if len(sys.argv) > 1 and sys.argv[1]:
         return sys.argv[1]
     config = os.environ.get("XDG_CONFIG_HOME") or os.path.join(os.path.expanduser("~"), ".config")
-    return os.path.join(config, "cafeneurotico", "desktop.json")
+    return os.path.join(config, "clarity", "desktop.json")
 
 
 def fail(message):
@@ -120,7 +120,7 @@ def main():
         with open(path, "r", encoding="utf-8") as fh:
             desc = json.load(fh)
     except FileNotFoundError:
-        fail("Cafe Neurotico has not been run on this machine yet")
+        fail("Clarity has not been run on this machine yet")
     except Exception as exc:                                  # noqa: BLE001 — any unreadable descriptor is the same story
         fail("cannot read %s: %s" % (path, exc))
 

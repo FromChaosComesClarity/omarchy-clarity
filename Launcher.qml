@@ -21,14 +21,14 @@ import "LauncherSearch.js" as LauncherSearch
 // the same one the Omarchy menu uses), so this follows `omarchy theme set` with no palette of
 // its own. Nothing here is hardcoded to look good against one background.
 //
-// ⚠️ Nothing is launched from inside this file. Enter spawns Cafe Neurotico with --play=<id>,
+// ⚠️ Nothing is launched from inside this file. Enter spawns Clarity with --play=<id>,
 // and the app does what pressing Play does: the multi-store picker, the "which engine?" and
 // "which Doom?" dialogs, the install-state check, the last-played write. A launcher in QML
 // that spawned games itself would be a second implementation of all of that, correct on the
 // day it was written and wrong by the next release.
 //
-// ⚠️ Every path comes from ~/.config/cafeneurotico/desktop.json, which the app writes on each
-// start. If it is not there, Cafe Neurotico is not installed here and this says so rather
+// ⚠️ Every path comes from ~/.config/clarity/desktop.json, which the app writes on each
+// start. If it is not there, Clarity is not installed here and this says so rather
 // than guessing at a path that happens to work on one machine.
 Item {
   id: root
@@ -41,7 +41,7 @@ Item {
   property string filterText: ""
   property int selectedIndex: 0
 
-  // The index, as parsed from cn-index. `ready` stays false until a first good read, so the
+  // The index, as parsed from clarity-index. `ready` stays false until a first good read, so the
   // empty state can tell "nothing matches" apart from "nothing loaded".
   property var index: ({ ok: false, error: "", exec: "", games: [], actions: [] })
   property bool ready: false
@@ -49,9 +49,9 @@ Item {
   property int total: 0
 
   readonly property string indexScript:
-    decodeURIComponent(Qt.resolvedUrl("scripts/cn-index").toString().replace(/^file:\/\//, ""))
+    decodeURIComponent(Qt.resolvedUrl("scripts/clarity-index").toString().replace(/^file:\/\//, ""))
   readonly property string installScript:
-    decodeURIComponent(Qt.resolvedUrl("scripts/cn-install").toString().replace(/^file:\/\//, ""))
+    decodeURIComponent(Qt.resolvedUrl("scripts/clarity-install").toString().replace(/^file:\/\//, ""))
 
   // True when the app is not on this machine at all, as opposed to a library that could not
   // be read — the difference between "get it" and "something is wrong".
@@ -115,7 +115,7 @@ Item {
   function dismiss() {
     root.opened = false
     if (root.shell && typeof root.shell.hide === "function")
-      root.shell.hide((root.manifest && root.manifest.id) || "io.github.fromchaoscomesclarity.cafeneurotico")
+      root.shell.hide((root.manifest && root.manifest.id) || "io.github.fromchaoscomesclarity.clarity")
   }
 
   function toggle() {
@@ -260,7 +260,7 @@ Item {
     visible: root.opened
     anchors { top: true; bottom: true; left: true; right: true }
     color: "transparent"
-    WlrLayershell.namespace: "cafeneurotico-launcher"
+    WlrLayershell.namespace: "clarity-launcher"
     WlrLayershell.layer: WlrLayer.Overlay
     WlrLayershell.keyboardFocus: WlrKeyboardFocus.Exclusive
     exclusionMode: ExclusionMode.Ignore
@@ -647,7 +647,7 @@ Item {
                 visible: text !== ""
                 text: root.current && root.current.rowKind === "game"
                   ? root.metaLine(root.current)
-                  : (root.current ? "Runs in Cafe Neurotico" : "")
+                  : (root.current ? "Runs in Clarity" : "")
                 color: root.accent
                 opacity: 0.85
                 font.family: root.fontFamily
@@ -712,7 +712,7 @@ Item {
               text: root.ready
                 ? "Nothing matches “" + root.filterText + "”"
                 : (root.appMissing
-                   ? "Cafe Neurotico is not installed here"
+                   ? "Clarity is not installed here"
                    : (root.indexError !== "" ? root.indexError : "Reading the library…"))
               color: root.foreground
               opacity: 0.7

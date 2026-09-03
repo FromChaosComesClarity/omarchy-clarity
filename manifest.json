@@ -1,23 +1,23 @@
 {
   "schemaVersion": 1,
-  "id": "io.github.fromchaoscomesclarity.cafeneurotico",
-  "name": "Cafe Neurotico",
+  "id": "io.github.fromchaoscomesclarity.clarity",
+  "name": "Clarity",
   "version": "0.4.0",
   "author": "Jose",
   "license": "GPL-3.0-or-later",
-  "description": "Your game library in the bar and one keystroke away: how many games are installed, what is running right now, and a fuzzy launcher that starts any of them. Click to open Cafe Neurotico, middle-click for CREMA on the couch.",
-  "homepage": "https://github.com/FromChaosComesClarity/CafeNeurotico",
+  "description": "Your game library in the bar and one keystroke away: how many games are installed, what is running right now, and a fuzzy launcher that starts any of them. Click to open Clarity, middle-click for Couch Mode on the couch.",
+  "homepage": "https://github.com/FromChaosComesClarity/Clarity",
   "kinds": [
     "bar-widget",
     "overlay"
   ],
   "keepLoaded": true,
   "entryPoints": {
-    "barWidget": "CafeNeurotico.qml",
+    "barWidget": "Clarity.qml",
     "overlay": "Launcher.qml"
   },
   "barWidget": {
-    "displayName": "Cafe Neurotico",
+    "displayName": "Clarity",
     "description": "Installed games, and what is playing.",
     "category": "System",
     "defaultSection": "right",
@@ -26,15 +26,15 @@
       {
         "key": "appimage",
         "type": "path",
-        "label": "Cafe Neurotico command (optional)",
-        "description": "Leave empty. Cafe Neurotico records its own location on every start and this widget reads it there — set a path only to override that, for a second copy of the app.",
+        "label": "Clarity command (optional)",
+        "description": "Leave empty. Clarity records its own location on every start and this widget reads it there — set a path only to override that, for a second copy of the app.",
         "defaultValue": ""
       },
       {
         "key": "database",
         "type": "path",
-        "label": "GRINDER database (optional)",
-        "description": "Leave empty. grinder.db holds what is installed, and its location comes from the app rather than being guessed here — a second consumer deriving its own path is how the library got orphaned once before.",
+        "label": "Installer database (optional)",
+        "description": "Leave empty. library.db holds what is installed, and its location comes from the app rather than being guessed here — a second consumer deriving its own path is how the library got orphaned once before.",
         "defaultValue": ""
       },
       {
