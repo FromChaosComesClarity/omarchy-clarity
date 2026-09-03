@@ -1,14 +1,14 @@
-# Cafe Neurotico — Omarchy bar widget and game launcher
+# Clarity — Omarchy bar widget and game launcher
 
 Your game library in the Omarchy bar, and one keystroke away: how many games are
 installed, what is running right now, and a fuzzy launcher that starts any of them.
 
 **In the bar**
 
-- **Left click** — a menu: the library, the launcher, CREMA, Manage Storage, the Control
+- **Left click** — a menu: the library, the launcher, Couch Mode, Manage Storage, the Control
   Panel, and what is playing when something is
-- **Middle click** — straight to CREMA, the fullscreen couch face, with no menu in the way
-- Bindable to a key too: `omarchy-shell io.github.fromchaoscomesclarity.cafeneurotico menu`
+- **Middle click** — straight to Couch Mode, the fullscreen couch face, with no menu in the way
+- Bindable to a key too: `omarchy-shell io.github.fromchaoscomesclarity.clarity menu`
 
 **The launcher** (an overlay, bind it to a key — see below)
 
@@ -26,34 +26,34 @@ installed, what is running right now, and a fuzzy launcher that starts any of th
 ## Install
 
 ```
-omarchy plugin add https://github.com/FromChaosComesClarity/omarchy-cafeneurotico
-omarchy plugin enable io.github.fromchaoscomesclarity.cafeneurotico
+omarchy plugin add https://github.com/FromChaosComesClarity/omarchy-clarity
+omarchy plugin enable io.github.fromchaoscomesclarity.clarity
 ```
 
-Nothing to configure: Cafe Neurotico writes down where it lives and this reads it.
+Nothing to configure: Clarity writes down where it lives and this reads it.
 
-**Do not have Cafe Neurotico yet?** Open the launcher and it says so, and offers to fetch it —
+**Do not have Clarity yet?** Open the launcher and it says so, and offers to fetch it —
 about 270 MB, downloaded and started in a terminal you can watch and stop. It never installs
 anything in the background.
 
 Bind the launcher to a key in `~/.config/hypr/bindings.lua`:
 
 ```lua
-o.bind("SUPER + CTRL + G", "Game launcher", "omarchy-shell shell toggle io.github.fromchaoscomesclarity.cafeneurotico")
+o.bind("SUPER + CTRL + G", "Game launcher", "omarchy-shell shell toggle io.github.fromchaoscomesclarity.clarity")
 ```
 
 ## How it works
 
 Three facts, gathered very differently:
 
-- **Where the app is** comes from `~/.config/cafeneurotico/desktop.json`, which
-  Cafe Neurotico rewrites on every start: which binary to run, where its two
+- **Where the app is** comes from `~/.config/clarity/desktop.json`, which
+  Clarity rewrites on every start: which binary to run, where its two
   databases are, and which palette actions this build has. Nothing here derives a
   path or hardcodes one — a second consumer computing its own answer is how the
   library got orphaned once before, and a hardcoded path works on exactly one
   machine. No descriptor means the app is not installed here, and this says so
   rather than guessing.
-- **What is playing** comes from Hyprland, not from the app. Cafe Neurotico
+- **What is playing** comes from Hyprland, not from the app. Clarity
   launches a game and gets out of the way, so it is usually not running while
   you play — asking it would give the wrong answer for the case this widget
   exists to show.
@@ -66,7 +66,7 @@ Every colour, font and corner radius comes from the Omarchy theme tokens (the sa
 surface the Omarchy menu uses), so `omarchy theme set` restyles this too. There is no palette
 of its own to fall out of step.
 
-Nothing is launched from inside this plugin. Enter spawns Cafe Neurotico with
+Nothing is launched from inside this plugin. Enter spawns Clarity with
 `--play=<id>`, and the app does exactly what pressing Play does: the multi-store
 picker, the "which engine?" and "which Doom?" dialogs, the install-state check,
 the last-played write. A launcher that spawned games itself would be a second
@@ -80,10 +80,10 @@ launcher and every game keep working exactly as before.
 
 ## Requires
 
-A Cafe Neurotico **newer than 1.10.0** — the descriptor this reads landed after that
+A Clarity **newer than 1.10.0** — the descriptor this reads landed after that
 release, and older builds do not write one — plus
 `sqlite3`, `hyprctl` and `python3` — all present on a stock Omarchy.
 
 ## License
 
-GPL-3.0-or-later, matching Cafe Neurotico itself.
+GPL-3.0-or-later, matching Clarity itself.
