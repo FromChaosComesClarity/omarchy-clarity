@@ -4,7 +4,7 @@ import Quickshell.Io
 import qs.Commons
 import qs.Ui
 
-// Cafe Neurotico in the bar.
+// Clarity in the bar.
 //
 // The app is a window you open; this is the part of it that is always there —
 // how many games are installed, and whether one is running right now. It only
@@ -12,16 +12,16 @@ import qs.Ui
 // failing outright costs the icon and nothing else. The library, the launcher
 // and every game keep working exactly as before.
 //
-// ⚠️ The running-game check reads the COMPOSITOR, not the app. Cafe Neurotico
+// ⚠️ The running-game check reads the COMPOSITOR, not the app. Clarity
 // does not have to be open for a game to be playing — it launches games and
 // gets out of the way — so asking the app would give the wrong answer for the
 // case this widget exists to show.
 BarWidget {
   id: root
-  objectName: "cafeNeuroticoWidget"
+  objectName: "clarityWidget"
 
   // ⚠️ Both paths default to empty on purpose: the app writes its own location and its
-  // database path to ~/.config/cafeneurotico/desktop.json on every start, and the backend
+  // database path to ~/.config/clarity/desktop.json on every start, and the backend
   // reads them there. A setting is an override for an unusual install, never the normal
   // way this finds the app — a hardcoded path works on exactly one machine.
   readonly property string appimageOverride: setting("appimage", "")
@@ -42,7 +42,7 @@ BarWidget {
   // Qt.resolvedUrl gives a file:// URL; the shell wants a plain path, and the
   // plugin directory is user-named, so the percent-decoding is not optional.
   readonly property string watchScript:
-    decodeURIComponent(Qt.resolvedUrl("scripts/cn-watch").toString().replace(/^file:\/\//, ""))
+    decodeURIComponent(Qt.resolvedUrl("scripts/clarity-watch").toString().replace(/^file:\/\//, ""))
 
   property int installed: -1        // -1 = not known yet, not "zero games"
   property string playing: ""
@@ -53,9 +53,9 @@ BarWidget {
   // same plugin, so it is toggled through the shell rather than spawned; the rest are the
   // app's own deeplinks, which is why this list needs no knowledge of what they do.
   readonly property var menuItems: [
-    { kind: "item", label: "Open the library",   glyph: "󰅶", act: "manager" },
+    { kind: "item", label: "Open the library",   glyph: "󰌱", act: "manager" },
     { kind: "item", label: "Find a game…",       glyph: "󰍉", act: "launcher" },
-    { kind: "item", label: "Play on the couch",  glyph: "󰊴", act: "crema" },
+    { kind: "item", label: "Play on the couch",  glyph: "󰊴", act: "couch" },
     { kind: "sep" },
     { kind: "item", label: "Manage storage",     glyph: "󰋊", act: "action:manage-storage" },
     { kind: "item", label: "Control Panel",      glyph: "󰒓", act: "action:control-panel" },
@@ -67,12 +67,12 @@ BarWidget {
   function runMenuItem(item) {
     if (!item || !item.act) return
     if (item.act === "manager") { root.open([]); return }
-    if (item.act === "crema")   { root.open(["--crema"]); return }
+    if (item.act === "couch")   { root.open(["--couch"]); return }
     if (item.act === "launcher") {
       // The overlay lives in this plugin, so ask the shell to toggle it rather than
       // starting anything — spawning would give a second copy of a thing already loaded.
       if (root.shellRef && typeof root.shellRef.toggle === "function")
-        root.shellRef.toggle((root.manifest && root.manifest.id) || "io.github.fromchaoscomesclarity.cafeneurotico", "{}")
+        root.shellRef.toggle((root.manifest && root.manifest.id) || "io.github.fromchaoscomesclarity.clarity", "{}")
       return
     }
     if (item.act.indexOf("action:") === 0) { root.open(["--action=" + item.act.slice(7)]); return }
@@ -111,14 +111,14 @@ BarWidget {
     anchors.fill: parent
     bar: root.bar
 
-    // Controller when a game is up, coffee cup when it is not — the app is named
-    // after the cup, and that distinction is the whole point of the widget.
-    // ⚠️ U+F0176 nf-md-coffee, verified by codepoint. The first draft used
-    // U+F0150, which renders as a CLOCK — close enough in a code editor to miss,
-    // and obvious the moment it reached the bar.
+    // Controller when a game is up, library shelf when it is not — that
+    // distinction is the whole point of the widget.
+    // ⚠️ U+F0331 nf-md-library, verified by reading the cmap of the installed
+    // Nerd Font rather than trusting a table: an earlier draft used U+F0150,
+    // which renders as a CLOCK — easy to miss in an editor, obvious on the bar.
     text: root.playing !== ""
       ? "󰊴 " + root.playing
-      : (root.installed >= 0 ? "󰅶 " + root.installed : "󰅶")
+      : (root.installed >= 0 ? "󰌱 " + root.installed : "󰌱")
 
     active: root.playing !== ""
     dimmed: root.installed < 0 && root.playing === ""
@@ -127,17 +127,17 @@ BarWidget {
       ? "Playing " + root.playing + " — click to open the library"
       : (root.installed < 0
          ? (root.appimage === ""
-            ? "Cafe Neurotico is not installed — press ⏎ in the launcher to fetch it"
-            : "Cafe Neurotico — cannot read the library database")
-         : root.installed + " games installed — click for the menu, middle-click for CREMA")
+            ? "Clarity is not installed — press ⏎ in the launcher to fetch it"
+            : "Clarity — cannot read the library database")
+         : root.installed + " games installed — click for the menu, middle-click for Couch Mode")
 
     // Left opens the menu — everything the app can do from the bar is one click away
-    // rather than one click plus a window. Middle still jumps straight to CREMA, because
+    // rather than one click plus a window. Middle still jumps straight to Couch Mode, because
     // someone sitting down does not want a menu first. Right is left alone: it is the
     // bar's own context menu everywhere else, and taking it here would make this widget
     // the one that behaves differently.
     onPressed: function(mouseButton) {
-      if (mouseButton === Qt.MiddleButton) root.open(["--crema"])
+      if (mouseButton === Qt.MiddleButton) root.open(["--couch"])
       else if (mouseButton === Qt.LeftButton) root.menuOpen = !root.menuOpen
     }
   }
@@ -266,15 +266,15 @@ BarWidget {
   }
 
   // Bindable from a key, and the only way to drive the menu without a mouse:
-  //   omarchy-shell io.github.fromchaoscomesclarity.cafeneurotico menu
+  //   omarchy-shell io.github.fromchaoscomesclarity.clarity menu
   // ⚠️ A bar widget exists once per monitor, so the handler toggles through broadcast()
   // rather than this instance alone — otherwise the menu opens on whichever screen the
   // shell happened to instantiate first.
   IpcHandler {
-    target: (root.manifest && root.manifest.id) || "io.github.fromchaoscomesclarity.cafeneurotico"
+    target: (root.manifest && root.manifest.id) || "io.github.fromchaoscomesclarity.clarity"
     function menu(): void { root.broadcast("toggleMenu") }
     function library(): void { root.open([]) }
-    function couch(): void { root.open(["--crema"]) }
+    function couch(): void { root.open(["--couch"]) }
     function playing(): string { return root.playing }
     function installed(): string { return String(root.installed) }
   }

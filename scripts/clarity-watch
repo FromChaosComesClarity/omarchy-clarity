@@ -1,33 +1,33 @@
 #!/usr/bin/env bash
-# Stream Cafe Neurotico's library state to stdout, one JSON object per line.
+# Stream Clarity's library state to stdout, one JSON object per line.
 #
 # Three facts, and they are gathered very differently:
 #
-#   where the app IS  — from ~/.config/cafeneurotico/desktop.json, which the app rewrites
+#   where the app IS  — from ~/.config/clarity/desktop.json, which the app rewrites
 #     on every start: which binary to run and where its databases are. ⚠️ Never derived
-#     here and never hardcoded. A second consumer computing its own grinder.db path is
-#     exactly how the library got orphaned once before (the two-grinder.db split), and a
+#     here and never hardcoded. A second consumer computing its own library.db path is
+#     exactly how the library got orphaned once before (the two-library.db split), and a
 #     hardcoded path only works on the machine it was typed on.
 #
-#   what is RUNNING  — from the compositor, not from the app. Cafe Neurotico is not
+#   what is RUNNING  — from the compositor, not from the app. Clarity is not
 #     necessarily open while a game is, and asking the app would mean it had to be running
 #     to answer. Hyprland always knows what windows exist.
 #
-#   what is INSTALLED — from grinder.db, re-read only when its mtime changes.
+#   what is INSTALLED — from library.db, re-read only when its mtime changes.
 #     ⚠️ A game directory can be large and this loop is every few seconds, so the count is
 #     cached; nothing here walks a filesystem.
 #
-# ⚠️ WAL mode: grinder.db is opened read-only with immutable=0 so a live writer is never
+# ⚠️ WAL mode: library.db is opened read-only with immutable=0 so a live writer is never
 # blocked, and a busy timeout so a checkpoint in progress yields a stale count for one
 # tick instead of an error.
 #
-# Usage: cn-watch [grinder.db override] [interval seconds]
+# Usage: clarity-watch [library.db override] [interval seconds]
 #   An empty first argument means "ask the descriptor", which is the normal case.
 
 db_override="${1:-}"
 interval="${2:-3}"
 
-descriptor="${XDG_CONFIG_HOME:-$HOME/.config}/cafeneurotico/desktop.json"
+descriptor="${XDG_CONFIG_HOME:-$HOME/.config}/clarity/desktop.json"
 
 # Games launched through umu/Proton all arrive as steam_app_*; the rest are the native
 # engines the custom installers set up. Kept in step with the app's own GAME_CLASS_RE in
@@ -43,7 +43,7 @@ desc_stamp=""
 json_escape() { printf '%s' "$1" | python3 -c 'import json,sys; print(json.dumps(sys.stdin.read()))'; }
 
 read_descriptor() {
-  # Prints "<exec>\t<grinderDb>". Missing file, bad JSON and missing keys all come back
+  # Prints "<exec>\t<installerDb>". Missing file, bad JSON and missing keys all come back
   # empty, which the loop reports as "cannot read the library" rather than a guess.
   python3 - "$descriptor" <<'PY' 2>/dev/null
 import json, sys
@@ -52,7 +52,7 @@ try:
         d = json.load(fh)
 except Exception:
     d = {}
-print("%s\t%s" % (d.get("exec") or "", d.get("grinderDb") or ""))
+print("%s\t%s" % (d.get("exec") or "", d.get("installerDb") or ""))
 PY
 }
 
