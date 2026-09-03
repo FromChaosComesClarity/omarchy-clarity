@@ -53,7 +53,7 @@ BarWidget {
   // same plugin, so it is toggled through the shell rather than spawned; the rest are the
   // app's own deeplinks, which is why this list needs no knowledge of what they do.
   readonly property var menuItems: [
-    { kind: "item", label: "Open the library",   glyph: "󰅶", act: "manager" },
+    { kind: "item", label: "Open the library",   glyph: "󰌱", act: "manager" },
     { kind: "item", label: "Find a game…",       glyph: "󰍉", act: "launcher" },
     { kind: "item", label: "Play on the couch",  glyph: "󰊴", act: "couch" },
     { kind: "sep" },
@@ -111,14 +111,14 @@ BarWidget {
     anchors.fill: parent
     bar: root.bar
 
-    // Controller when a game is up, coffee cup when it is not — the app is named
-    // after the cup, and that distinction is the whole point of the widget.
-    // ⚠️ U+F0176 nf-md-coffee, verified by codepoint. The first draft used
-    // U+F0150, which renders as a CLOCK — close enough in a code editor to miss,
-    // and obvious the moment it reached the bar.
+    // Controller when a game is up, library shelf when it is not — that
+    // distinction is the whole point of the widget.
+    // ⚠️ U+F0331 nf-md-library, verified by reading the cmap of the installed
+    // Nerd Font rather than trusting a table: an earlier draft used U+F0150,
+    // which renders as a CLOCK — easy to miss in an editor, obvious on the bar.
     text: root.playing !== ""
       ? "󰊴 " + root.playing
-      : (root.installed >= 0 ? "󰅶 " + root.installed : "󰅶")
+      : (root.installed >= 0 ? "󰌱 " + root.installed : "󰌱")
 
     active: root.playing !== ""
     dimmed: root.installed < 0 && root.playing === ""

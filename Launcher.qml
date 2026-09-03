@@ -341,9 +341,9 @@ Item {
             id: mark
             anchors.left: parent.left
             anchors.verticalCenter: parent.verticalCenter
-            // U+F0176 nf-md-coffee, verified by codepoint — the same mark the bar widget
-            // wears, so the overlay is recognisably the same app.
-            text: "󰅶"
+            // U+F0331 nf-md-library, verified against the installed font's cmap — the
+            // same mark the bar widget wears, so the overlay is recognisably the same app.
+            text: "󰌱"
             color: root.accent
             font.family: root.fontFamily
             font.pixelSize: Style.font.heading
@@ -605,7 +605,7 @@ Item {
                 Text {
                   anchors.centerIn: parent
                   visible: art.status !== Image.Ready
-                  text: "󰅶"
+                  text: "󰌱"
                   color: root.foreground
                   opacity: 0.25
                   font.family: root.fontFamily
@@ -699,7 +699,7 @@ Item {
             visible: rowModel.count === 0
 
             Text {
-              text: root.ready ? "󰈉" : "󰅶"
+              text: root.ready ? "󰈉" : "󰌱"
               color: root.foreground
               opacity: 0.3
               font.family: root.fontFamily
