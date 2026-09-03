@@ -765,7 +765,7 @@ Item {
           Text {
             anchors.right: parent.right
             anchors.bottom: parent.bottom
-            text: root.index.version ? "cafe neurotico " + root.index.version : "cafe neurotico"
+            text: root.index.version ? "Clarity " + root.index.version : "Clarity"
             color: root.muted
             opacity: 0.6
             font.family: root.fontFamily
