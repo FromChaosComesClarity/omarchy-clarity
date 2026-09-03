@@ -2,7 +2,7 @@
 //
 // ⚠️ `score` is the Manager's own _PAL_ACTIONS scorer, character for character. The
 // Ctrl+K palette inside the app and this overlay outside it are two doors onto the same
-// library, and typing "kcd" should not rank differently depending on which one is open —
+// library, and typing "kcd" should not rank differently depending on which one is open ,
 // so when one changes, the other changes with it. That shared behaviour is why the
 // palette was built first.
 //
@@ -10,7 +10,7 @@
 
 // Subsequence match, the same rule a fuzzy launcher uses: every character of the query
 // must appear in order. Scoring prefers a prefix hit, then a word-start hit, then
-// anything — so "kcd" finds "Kingdom Come: Deliverance" but an exact prefix still wins
+// anything, so "kcd" finds "Kingdom Come: Deliverance" but an exact prefix still wins
 // the top slot.
 function score(hay, q) {
   var h = String(hay || "").toLowerCase()
@@ -41,7 +41,7 @@ function normalize(query) {
 // actions, then everything you own but have not installed. Once something IS typed,
 // ranking is the palette's scorer and the ordering below stops applying.
 //
-// ⚠️ Tier first, timestamp second — never a timestamp folded into a score. LastPlayed is
+// ⚠️ Tier first, timestamp second, never a timestamp folded into a score. LastPlayed is
 // written in milliseconds, and an earlier version of this squeezed it into a number that
 // saturated: all 127 played games came out equal and the recency ordering was silently
 // alphabetical. Comparing the two fields separately cannot round anything away.
@@ -60,9 +60,9 @@ function idleCompare(a, b) {
 }
 
 /*
- * index  — { games: [{id,name,store,installed,lastPlayed}], actions: [{id,name}] }
- * query  — what the user typed
- * limit  — how many rows to hand back
+ * index , { games: [{id,name,store,installed,lastPlayed}], actions: [{id,name}] }
+ * query , what the user typed
+ * limit , how many rows to hand back
  *
  * Rows come back ready to render: { kind, id, name, badge, installed }.
  */
