@@ -27,14 +27,14 @@
         "key": "appimage",
         "type": "path",
         "label": "Clarity command (optional)",
-        "description": "Leave empty. Clarity records its own location on every start and this widget reads it there — set a path only to override that, for a second copy of the app.",
+        "description": "Leave empty. Clarity records its own location on every start and this widget reads it there, set a path only to override that, for a second copy of the app.",
         "defaultValue": ""
       },
       {
         "key": "database",
         "type": "path",
         "label": "Installer database (optional)",
-        "description": "Leave empty. library.db holds what is installed, and its location comes from the app rather than being guessed here — a second consumer deriving its own path is how the library got orphaned once before.",
+        "description": "Leave empty. library.db holds what is installed, and its location comes from the app rather than being guessed here, a second consumer deriving its own path is how the library got orphaned once before.",
         "defaultValue": ""
       },
       {

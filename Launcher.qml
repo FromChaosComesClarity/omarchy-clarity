@@ -10,11 +10,11 @@ import "LauncherSearch.js" as LauncherSearch
 // The library, one keystroke away.
 //
 // Omarchy is a place where everything opens from a fuzzy list, and the game library was the
-// exception — it was a window you had to go and find. Type three letters here and press Enter
+// exception, it was a window you had to go and find. Type three letters here and press Enter
 // and the game starts.
 //
 // The layout is a launcher on the left and the game on the right: cover, genre, year, how long
-// you have played it, and a sentence about it. Not decoration — it is what tells two games
+// you have played it, and a sentence about it. Not decoration, it is what tells two games
 // with similar names apart, and what makes a list of 877 rows feel like a library.
 //
 // ⚠️ Every colour, font and radius comes from the Omarchy theme tokens (the [menu] surface,
@@ -54,7 +54,7 @@ Item {
     decodeURIComponent(Qt.resolvedUrl("scripts/clarity-install").toString().replace(/^file:\/\//, ""))
 
   // True when the app is not on this machine at all, as opposed to a library that could not
-  // be read — the difference between "get it" and "something is wrong".
+  // be read, the difference between "get it" and "something is wrong".
   readonly property bool appMissing: !root.ready && root.indexError.indexOf("has not been run") !== -1
 
   // ⚠️ In a terminal, never silently: this downloads ~270 MB and then runs what it fetched.
@@ -131,7 +131,7 @@ Item {
   function applyIndex(raw) {
     var parsed = LauncherSearch.parseIndex(raw)
     // ⚠️ A failed read keeps the last good index. The database is in WAL mode and a checkpoint
-    // mid-read is a busy error, not a library that vanished — dropping the list on the floor
+    // mid-read is a busy error, not a library that vanished, dropping the list on the floor
     // would make the launcher flicker empty while a game installs.
     if (!parsed.ok) {
       root.indexError = parsed.error
@@ -215,8 +215,8 @@ Item {
   }
 
   // ⚠️ A local path becomes a URL, and a library is full of titles with spaces, apostrophes
-  // and the occasional #. encodeURI leaves # alone — where it would be read as a fragment and
-  // silently truncate the path — so it is escaped by hand.
+  // and the occasional #. encodeURI leaves # alone, where it would be read as a fragment and
+  // silently truncate the path, so it is escaped by hand.
   function fileUrl(path) {
     if (!path) return ""
     return "file://" + encodeURI(String(path)).replace(/#/g, "%23")
@@ -229,7 +229,7 @@ Item {
     return (hours < 10 ? hours.toFixed(1) : Math.round(hours)) + " h played"
   }
 
-  // Store strings come out of the library as "Steam, GOG" — the launcher wants the shape of
+  // Store strings come out of the library as "Steam, GOG", the launcher wants the shape of
   // the line, not the full inventory.
   function metaLine(row) {
     if (!row) return ""
@@ -337,16 +337,32 @@ Item {
           width: parent.width
           height: root.headerHeight
 
-          Text {
+          // The aperture, drawn rather than a font glyph, so it is the same mark the
+          // bar widget wears and it takes the accent colour of the applied theme.
+          Canvas {
             id: mark
             anchors.left: parent.left
             anchors.verticalCenter: parent.verticalCenter
-            // U+F0331 nf-md-library, verified against the installed font's cmap — the
-            // same mark the bar widget wears, so the overlay is recognisably the same app.
-            text: "󰌱"
-            color: root.accent
-            font.family: root.fontFamily
-            font.pixelSize: Style.font.heading
+            width: Style.font.heading * 1.25
+            height: width
+            property color ink: root.accent
+            onInkChanged: requestPaint()
+            onWidthChanged: requestPaint()
+            onPaint: {
+              const ctx = getContext("2d")
+              ctx.reset()
+              const cx = width / 2, cy = height / 2
+              ctx.strokeStyle = ink
+              ctx.lineWidth = width * 0.11
+              ctx.lineCap = "round"
+              ctx.beginPath()
+              ctx.arc(cx, cy, width * 0.29, 52 * Math.PI / 180, 308 * Math.PI / 180, false)
+              ctx.stroke()
+              ctx.beginPath()
+              ctx.fillStyle = ink
+              ctx.arc(cx, cy, width * 0.066, 0, Math.PI * 2)
+              ctx.fill()
+            }
           }
 
           Text {
@@ -468,7 +484,7 @@ Item {
                 elide: Text.ElideRight
               }
 
-              // play / install / action — a pill for the one you can act on right now, plain
+              // play / install / action, a pill for the one you can act on right now, plain
               // dim text for the rest, so the eye finds what is playable without reading.
               Rectangle {
                 id: badge
@@ -557,7 +573,7 @@ Item {
               anchors.rightMargin: (parent.width - root.artWidth) / 2
 
               // Cover art, rounded with the same MultiEffect mask the shell's own image
-              // picker uses — a Rectangle's radius does not clip its children.
+              // picker uses, a Rectangle's radius does not clip its children.
               Item {
                 id: artFrame
                 anchors.top: parent.top
@@ -724,11 +740,11 @@ Item {
             }
 
             // ⚠️ Knowing the app is missing and only saying so is a dead end. This offers the
-            // next step — and says what it will do, because 270 MB and an executable are not
+            // next step, and says what it will do, because 270 MB and an executable are not
             // things to start without telling someone.
             Text {
               visible: root.appMissing
-              text: "Press ⏎ to fetch it — about 270 MB, in a terminal you can watch"
+              text: "Press ⏎ to fetch it, about 270 MB, in a terminal you can watch"
               color: root.accent
               font.family: root.fontFamily
               font.pixelSize: Style.font.bodySmall
