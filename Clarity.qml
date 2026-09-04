@@ -69,10 +69,17 @@ BarWidget {
     if (item.act === "manager") { root.open([]); return }
     if (item.act === "couch")   { root.open(["--couch"]); return }
     if (item.act === "launcher") {
-      // The overlay lives in this plugin, so ask the shell to toggle it rather than
-      // starting anything, spawning would give a second copy of a thing already loaded.
-      if (root.shellRef && typeof root.shellRef.toggle === "function")
-        root.shellRef.toggle((root.manifest && root.manifest.id) || "io.github.fromchaoscomesclarity.clarity", "{}")
+      // The overlay lives in this plugin, so the shell is asked to toggle it rather than
+      // anything being started: spawning would give a second copy of a thing already loaded.
+      //
+      // ⚠️ Routed through the shell's own CLI, not an injected `shell` object. The bar host
+      // does not hand a bar widget a `shell`, so that property stayed null, the guarded call
+      // fell straight through, and this one menu row did nothing at all while every other
+      // row worked. `omarchy-shell shell toggle` is an IPC call into the already-running
+      // shell, the same thing SUPER+CTRL+G is bound to, so it still starts no second copy.
+      var pid = (root.manifest && root.manifest.id) || "io.github.fromchaoscomesclarity.clarity"
+      if (root.shellRef && typeof root.shellRef.toggle === "function") root.shellRef.toggle(pid, "{}")
+      else Util.execArgv(["omarchy-shell", "shell", "toggle", pid])
       return
     }
     if (item.act.indexOf("action:") === 0) { root.open(["--action=" + item.act.slice(7)]); return }
