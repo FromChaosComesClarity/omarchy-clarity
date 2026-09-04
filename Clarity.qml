@@ -18,6 +18,11 @@ import qs.Ui
 // case this widget exists to show.
 BarWidget {
   id: root
+
+  // ⚠️ Required, not decorative. BarWidget.broadcast() asks the bar for its sibling
+  // instances by this name, and Bar.moduleWidgets() returns an empty list for a blank
+  // one. Without it `omarchy-shell <id> menu` reaches nothing and appears to do nothing.
+  moduleName: "io.github.fromchaoscomesclarity.clarity"
   objectName: "clarityWidget"
 
   // ⚠️ Both paths default to empty on purpose: the app writes its own location and its
