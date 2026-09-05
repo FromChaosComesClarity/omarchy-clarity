@@ -70,6 +70,21 @@ BarWidget {
   // about the bar being quiet, not about the widget knowing less.
   property bool showCount: false
 
+  // Whether the number is actually drawn. The reserved width, the metrics and the label all
+  // key off this one property, because they have to agree: reserve room for a count that is
+  // not drawn and the bar gets a hole, draw one without reserving and it runs into whatever
+  // is next.
+  readonly property bool countVisible: root.showCount && root.installed >= 0
+
+  // ⚠️ Trailing room after the digits, and trailing only. A glyph's ink sits well inside its
+  // optical canvas, so the symmetric padding that centres an icon reads as even spacing on
+  // both sides. A digit has almost no side bearing, its ink runs to the edge of its own
+  // advance width, and TextMetrics under-measures what NativeRendering actually paints. The
+  // count ended up with about 7px of daylight before the next widget where neighbouring
+  // icons get 22 to 24. This is added to the reserved width AND taken back off the content's
+  // centring, so all of it lands after the number instead of being split either side of it.
+  readonly property int countTrailing: countVisible ? 12 : 0
+
   readonly property string stateDir: Quickshell.env("HOME") + "/.local/state/omarchy/"
   readonly property string prefsPath: stateDir + "clarity-widget.json"
 
@@ -255,8 +270,8 @@ BarWidget {
     // narrower than every other icon on the bar, and the mark sits crowded against its
     // neighbour. Reproduce BarIconButton's own default instead of disabling it.
     fixedWidth: root.playing !== "" ? -1
-              : (root.showCount ? button.slotSize + countMetrics.width + 6
-                                : (root.vertical ? -1 : button.slotSize))
+              : (root.countVisible ? button.slotSize + countMetrics.width + 6 + root.countTrailing
+                                   : (root.vertical ? -1 : button.slotSize))
 
     active: root.playing !== ""
     dimmed: root.installed < 0 && root.playing === ""
@@ -285,7 +300,7 @@ BarWidget {
     id: countMetrics
     font.family: button.fontFamily
     font.pixelSize: button.fontSize
-    text: (root.showCount && root.installed >= 0) ? String(root.installed) : ""
+    text: root.countVisible ? String(root.installed) : ""
   }
 
   Component {
@@ -293,6 +308,9 @@ BarWidget {
     Row {
       spacing: 6
       anchors.centerIn: parent
+      // The extra width above is centred like everything else, so half of it would land in
+      // front of the mark. Shift back by that half and it all ends up behind the digits.
+      anchors.horizontalCenterOffset: -root.countTrailing / 2
 
       // The aperture: one open ring with the focal dot at its centre.
       Canvas {
@@ -324,9 +342,9 @@ BarWidget {
       }
 
       Text {
-        visible: root.showCount && root.installed >= 0
+        visible: root.countVisible
         anchors.verticalCenter: parent.verticalCenter
-        text: (root.showCount && root.installed >= 0) ? String(root.installed) : ""
+        text: root.countVisible ? String(root.installed) : ""
         color: button.active && button.useActiveColor ? button.activeColor : button.foreground
         font.family: button.fontFamily
         font.pixelSize: button.fontSize
