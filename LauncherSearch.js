@@ -60,7 +60,12 @@ function idleCompare(a, b) {
 }
 
 /*
- * index , { games: [{id,name,store,installed,lastPlayed}], actions: [{id,name}] }
+ * index , { games: [{id,name,store,installed,lastPlayed,source,exec}], actions: [{id,name}] }
+ *
+ * ⚠️ Games arrive from more than one app. `source` says which one owns the row and `exec`
+ * is the binary that plays it, and both ride along to the row so Enter can spawn the right
+ * app without a second lookup. Ids are only unique WITHIN a source: two apps can and do
+ * both hold a game numbered 5.
  * query , what the user typed
  * limit , how many rows to hand back
  *
@@ -81,7 +86,10 @@ function search(index, query, limit) {
     // contains the word, because you typed the name of a thing you meant to do.
     rows.push({ kind: "action", id: actions[i].id, name: actions[i].name,
                 badge: "action", installed: false, lastPlayed: 0, score: s + 40,
-                cover: "", blurb: "", genre: "", year: "", store: "", playtime: 0 })
+                cover: "", blurb: "", genre: "", year: "", store: "", playtime: 0,
+                // Actions are the command palette of the app that owns this overlay, so they
+                // always run in it. An empty exec means "the index's own", not "nothing".
+                source: "clarity", exec: "" })
   }
 
   for (i = 0; i < games.length; i++) {
@@ -99,7 +107,8 @@ function search(index, query, limit) {
                 installed: !!g.installed, lastPlayed: g.lastPlayed || 0,
                 score: gs + (g.installed ? 20 : 0),
                 cover: g.cover || "", blurb: g.blurb || "", genre: g.genre || "",
-                year: g.year || "", store: g.store || "", playtime: g.playtime || 0 })
+                year: g.year || "", store: g.store || "", playtime: g.playtime || 0,
+                source: g.source || "clarity", exec: g.exec || "" })
   }
 
   if (!q) {
