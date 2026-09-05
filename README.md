@@ -6,8 +6,12 @@ installed, what is running right now, and a fuzzy launcher that starts any of th
 **In the bar**
 
 - **Left click**, a menu: the library, the launcher, Couch Mode, Manage Storage, the Control
-  Panel, and what is playing when something is
+  Panel, the count toggle, and what is playing when something is
 - **Middle click**, straight to Couch Mode, the fullscreen couch face, with no menu in the way
+- **The game count is off by default.** The mark alone is what you want most of the time, and
+  a number that changes width as you install is a real cost on a bar. Turn it on from the
+  menu, where you already are. It is remembered, and it applies to every monitor at once. The
+  count is still in the tooltip either way
 - Bindable to a key too: `omarchy-shell io.github.fromchaoscomesclarity.clarity menu`
 
 **The launcher** (an overlay, bind it to a key, see below)
@@ -61,6 +65,11 @@ Three facts, gathered very differently:
   change. Nothing here walks a filesystem. Cover art is read from the path the library
   already stores, resolved against the app's own data directory, nothing is downloaded and
   no second copy of your artwork is made.
+
+The menu's count toggle is kept in `~/.local/state/omarchy/clarity-widget.json` rather than in
+the widget's own settings schema: schema values live in `shell.json` and a widget cannot write
+them back through `setting()`, so a menu row driving one would have nowhere to save to. The
+sibling EmuLatte plugin keeps the same preference the same way.
 
 Every colour, font and corner radius comes from the Omarchy theme tokens (the same `[menu]`
 surface the Omarchy menu uses), so `omarchy theme set` restyles this too. There is no palette
