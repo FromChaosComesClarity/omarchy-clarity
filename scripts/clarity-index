@@ -1,5 +1,10 @@
 #!/usr/bin/env python3
-"""Print Clarity's library and actions as one JSON object, for the launcher overlay.
+"""Print the suite's library and actions as one JSON object, for the launcher overlay.
+
+Clarity's own library, and EmuLatte's ROMs when that app is installed too: the two are one
+suite, they keep their databases in the same data root when both AppImages sit together,
+and one keystroke searching both is the point of them being a suite at all. Every row says
+which app owns it and which binary plays it, so the overlay never has to guess.
 
 ⚠️ Nothing here is guessed. The app writes ~/.config/clarity/desktop.json on every
 start — which binary it is, where its two databases are, and which command-palette actions
@@ -17,6 +22,7 @@ import json
 import os
 import re
 import sqlite3
+import subprocess
 import sys
 
 
@@ -114,6 +120,61 @@ def read_games(db_path, base_dir):
     return games
 
 
+# ── The sibling library ───────────────────────────────────────────────────────────────
+# ⚠️ This RUNS EmuLatte's own index script rather than reading its database here. How to
+# read that library is EmuLatte's knowledge, not ours: the systems join, the rule for what
+# counts as playable, and the re-homing of cover paths that go stale whenever its data
+# directory moves. A second copy of all that living here would drift the first time its
+# schema changed, which is the same mistake as a hardcoded path wearing a different hat.
+#
+# The script is found by plugin id under the Omarchy plugins directory. That is a location
+# the shell defines, not a guess about where anyone keeps their games.
+COMPANION_ID = "io.github.fromchaoscomesclarity.emulatte"
+
+
+def companion_script():
+    config = os.environ.get("XDG_CONFIG_HOME") or os.path.join(os.path.expanduser("~"), ".config")
+    path = os.path.join(config, "omarchy", "plugins", COMPANION_ID, "scripts", "emulatte-index")
+    return path if os.access(path, os.X_OK) or os.path.isfile(path) else ""
+
+
+# ⚠️ A companion that is missing, slow, or broken is not an error. Clarity's own library is
+# the answer this script exists to give, and it is returned unchanged in every one of those
+# cases rather than the whole launcher going dark because a second app is having a bad day.
+def companion_games():
+    script = companion_script()
+    if not script:
+        return []
+    try:
+        done = subprocess.run([sys.executable, script], capture_output=True, text=True, timeout=10)
+        data = json.loads(done.stdout or "{}")
+    except Exception:                                         # noqa: BLE001
+        return []
+    if not data.get("ok") or not data.get("exec"):
+        return []
+
+    games = []
+    for g in data.get("games") or []:
+        games.append({
+            "id": g.get("id"),
+            "name": g.get("name") or "",
+            # The system short name stands in for the store: it is what tells a ROM apart
+            # from a shop copy at a glance, and from the other ROM of the same name. There
+            # are 13 titles in my own library that exist in both.
+            "store": g.get("short") or g.get("system") or "",
+            "installed": bool(g.get("installed")),
+            "lastPlayed": int(g.get("lastPlayed") or 0),
+            "cover": g.get("cover") or "",
+            "blurb": g.get("blurb") or "",
+            "genre": g.get("genre") or "",
+            "year": g.get("year") or "",
+            "playtime": 0,                 # EmuLatte does not keep minutes played
+            "source": "emulatte",
+            "exec": data.get("exec") or "",
+        })
+    return games
+
+
 def main():
     path = descriptor_path()
     try:
@@ -132,6 +193,14 @@ def main():
         games = read_games(library, desc.get("baseDir") or "")
     except Exception as exc:                                  # noqa: BLE001
         fail("cannot read the library: %s" % exc)
+
+    # Every row carries its owner and the binary that plays it, so the overlay routes Enter
+    # by row instead of assuming one app owns the whole list.
+    own_exec = desc.get("exec") or ""
+    for g in games:
+        g["source"] = "clarity"
+        g["exec"] = own_exec
+    games.extend(companion_games())
 
     actions = [
         {"id": str(a.get("id")), "name": str(a.get("name"))}
