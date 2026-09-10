@@ -33,6 +33,48 @@ cat <<'BANNER'
 
 BANNER
 
+# ⚠️ FUSE, checked before anything is downloaded.
+#
+# A type 2 AppImage is a self-mounting SquashFS image, and its runtime links libfuse.so.2 by
+# name. Verified against the shipped file: the runtime header carries the string libfuse.so.2
+# and the AppImage magic is type 2. Without that library the download is executable and simply
+# refuses to start, with a linker error that says nothing about AppImages.
+#
+# ⚠️ Omarchy does not install it. Nothing under /usr/share/omarchy/install mentions fuse, so a
+# fresh box cannot run ANY AppImage, this one included. It is invisible to anyone who happens
+# to have it already, which is most people who have ever installed one.
+#
+# ⚠️ Detected by LIBRARY, not by package name: it is fuse2 on Arch, libfuse2 on Debian and
+# fuse-libs on Fedora, while the library is called the same thing everywhere.
+fuse_ready() { ldconfig -p 2>/dev/null | grep -q 'libfuse\.so\.2'; }
+
+if ! fuse_ready; then
+  warn "AppImages need FUSE, and this system does not have it."
+  printf '  Clarity ships as an AppImage. Without libfuse.so.2 it cannot start at all, and\n'
+  printf '  neither can any other AppImage here. Omarchy does not install it for you.\n\n'
+  if command -v omarchy >/dev/null; then
+    printf '  Install it now? [Y/n] '
+    read -r reply
+    case "$reply" in
+      [nN]*) warn "Left alone. Clarity will not start until FUSE is installed." ;;
+      *)
+        say "Running: omarchy pkg add fuse2"
+        omarchy pkg add fuse2 || warn "That did not finish."
+        if fuse_ready; then say "FUSE is ready."; else warn "Still not there. Clarity may not start."; fi
+        ;;
+    esac
+  else
+    printf '  Install the FUSE 2 package for your distribution first:\n'
+    printf '    Arch     sudo pacman -S fuse2\n'
+    printf '    Debian   sudo apt install libfuse2\n'
+    printf '    Fedora   sudo dnf install fuse-libs\n\n'
+    printf '  Continue anyway? [y/N] '
+    read -r reply
+    case "$reply" in [yY]*) ;; *) die "Nothing was downloaded." ;; esac
+  fi
+  say ""
+fi
+
 # ⚠️ The AppImage's own folder becomes the app's data directory — the library, the artwork and
 # the settings all land beside it. That makes this a real choice, so it is offered rather than
 # decided silently.
