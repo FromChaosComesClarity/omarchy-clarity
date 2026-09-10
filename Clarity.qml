@@ -55,6 +55,77 @@ BarWidget {
   property string reportedExec: ""
   property bool menuOpen: false
 
+  // ── Showing the count ────────────────────────────────────────────────
+  // Off by default, and turned on from the menu rather than from the widget's settings
+  // schema. A number on the bar is a real cost: it is always there, it is the only widget
+  // here whose width changes as you install games, and most of the time you want the mark
+  // and nothing else. So it is opt-in, and the way in is one click from where you already are.
+  //
+  // ⚠️ Not a `setting()` from the manifest schema. Those are read out of shell.json and a
+  // widget cannot write them back through `setting()`, so a menu row driving one would have
+  // nowhere to save to. Two stores for one preference is worse than one store in the less
+  // obvious place. The sibling EmuLatte plugin keeps the same preference the same way.
+  //
+  // ⚠️ The count is still READ when it is hidden, and still in the tooltip. Hiding it is
+  // about the bar being quiet, not about the widget knowing less.
+  property bool showCount: false
+
+  // Whether the number is actually drawn. The reserved width, the metrics and the label all
+  // key off this one property, because they have to agree: reserve room for a count that is
+  // not drawn and the bar gets a hole, draw one without reserving and it runs into whatever
+  // is next.
+  readonly property bool countVisible: root.showCount && root.installed >= 0
+
+  // ⚠️ Trailing room after the digits, and trailing only. A glyph's ink sits well inside its
+  // optical canvas, so the symmetric padding that centres an icon reads as even spacing on
+  // both sides. A digit has almost no side bearing, its ink runs to the edge of its own
+  // advance width, and TextMetrics under-measures what NativeRendering actually paints. The
+  // count ended up with about 7px of daylight before the next widget where neighbouring
+  // icons get 22 to 24. This is added to the reserved width AND taken back off the content's
+  // centring, so all of it lands after the number instead of being split either side of it.
+  readonly property int countTrailing: countVisible ? 12 : 0
+
+  readonly property string stateDir: Quickshell.env("HOME") + "/.local/state/omarchy/"
+  readonly property string prefsPath: stateDir + "clarity-widget.json"
+
+  function loadPrefs(text) {
+    try {
+      var data = JSON.parse(String(text || "").trim() || "{}")
+      root.showCount = data.showCount === true
+    } catch (e) {
+      root.showCount = false     // an unreadable file is the default, never a crash
+    }
+  }
+
+  function toggleCount() {
+    root.showCount = !root.showCount
+    // Written for the next shell start; the peers on other monitors pick it up from the file
+    // watch below, which is why nothing is broadcast by hand.
+    prefsFile.setText(JSON.stringify({ version: 1, showCount: root.showCount }, null, 2) + "\n")
+  }
+
+  Process { id: ensureStateDir; command: ["mkdir", "-p", root.stateDir] }
+
+  FileView {
+    id: prefsFile
+    path: root.prefsPath
+    watchChanges: true
+    atomicWrites: true
+    printErrors: false
+    onLoaded: root.loadPrefs(text())
+    // ⚠️ First run: the file does not exist yet, and without this branch the widget would sit
+    // on whatever the property was initialised to and never learn otherwise.
+    onLoadFailed: root.loadPrefs("")
+    // A bar widget is live once per monitor. The write from one instance arrives here as a
+    // file change, which is how the other bars follow without any of them talking directly.
+    onFileChanged: reload()
+  }
+
+  Component.onCompleted: {
+    ensureStateDir.running = true
+    Qt.callLater(function() { prefsFile.reload() })
+  }
+
   // One click from the bar to everything the app does. The launcher is an overlay in this
   // same plugin, so it is toggled through the shell rather than spawned; the rest are the
   // app's own deeplinks, which is why this list needs no knowledge of what they do.
@@ -65,6 +136,14 @@ BarWidget {
     { kind: "sep" },
     { kind: "item", label: "Manage storage",     glyph: "󰋊", act: "action:manage-storage" },
     { kind: "item", label: "Control Panel",      glyph: "󰒓", act: "action:control-panel" },
+    { kind: "sep" },
+    // The label says what pressing it does, not what the current state is: a row reading
+    // "Show the game count" while the count is already showing is the classic way to make a
+    // toggle ambiguous. The box on the right carries the state.
+    { kind: "item",
+      label: root.showCount ? "Hide the game count" : "Show the game count",
+      glyph: root.showCount ? "󰄲" : "󰄱",
+      act: "toggle-count" },
   ]
 
   // Called on whichever instance toggleMenuOnFocusedScreen() picks, and by the bar
@@ -115,6 +194,7 @@ BarWidget {
 
   function runMenuItem(item) {
     if (!item || !item.act) return
+    if (item.act === "toggle-count") { root.toggleCount(); return }
     if (item.act === "manager") { root.open([]); return }
     if (item.act === "couch")   { root.open(["--couch"]); return }
     if (item.act === "launcher") {
@@ -180,7 +260,18 @@ BarWidget {
     // fixedWidth is widened to make room for it.
     iconComponent: root.playing !== "" ? null : markWithCount
     text: root.playing !== "" ? "󰊴 " + root.playing : ""
-    fixedWidth: root.playing !== "" ? -1 : (button.slotSize + countMetrics.width + 6)
+    // ⚠️ The extra room is reserved only when the number is actually there. Widening for a
+    // count that is switched off leaves a gap in the bar that reads as a rendering fault.
+    //
+    // ⚠️ ...but the off branch is the ICON SLOT, never -1. BarIconButton defaults
+    // fixedWidth to `vertical ? -1 : slotSize`, and -1 opts out of that into WidgetButton's
+    // label path, which sizes from `label.implicitWidth` — zero here, because an icon button
+    // carries no text. The widget then comes out at max(12, margin * 2), around ten pixels
+    // narrower than every other icon on the bar, and the mark sits crowded against its
+    // neighbour. Reproduce BarIconButton's own default instead of disabling it.
+    fixedWidth: root.playing !== "" ? -1
+              : (root.countVisible ? button.slotSize + countMetrics.width + 6 + root.countTrailing
+                                   : (root.vertical ? -1 : button.slotSize))
 
     active: root.playing !== ""
     dimmed: root.installed < 0 && root.playing === ""
@@ -209,7 +300,7 @@ BarWidget {
     id: countMetrics
     font.family: button.fontFamily
     font.pixelSize: button.fontSize
-    text: root.installed >= 0 ? String(root.installed) : ""
+    text: root.countVisible ? String(root.installed) : ""
   }
 
   Component {
@@ -217,6 +308,9 @@ BarWidget {
     Row {
       spacing: 6
       anchors.centerIn: parent
+      // The extra width above is centred like everything else, so half of it would land in
+      // front of the mark. Shift back by that half and it all ends up behind the digits.
+      anchors.horizontalCenterOffset: -root.countTrailing / 2
 
       // The aperture: one open ring with the focal dot at its centre.
       Canvas {
@@ -248,9 +342,9 @@ BarWidget {
       }
 
       Text {
-        visible: root.installed >= 0
+        visible: root.countVisible
         anchors.verticalCenter: parent.verticalCenter
-        text: root.installed >= 0 ? String(root.installed) : ""
+        text: root.countVisible ? String(root.installed) : ""
         color: button.active && button.useActiveColor ? button.activeColor : button.foreground
         font.family: button.fontFamily
         font.pixelSize: button.fontSize
