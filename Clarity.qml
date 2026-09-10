@@ -1,6 +1,7 @@
 import QtQuick
 import Quickshell
 import Quickshell.Io
+import Quickshell.Hyprland
 import qs.Commons
 import qs.Ui
 
@@ -19,9 +20,9 @@ import qs.Ui
 BarWidget {
   id: root
 
-  // ⚠️ Required, not decorative. BarWidget.broadcast() asks the bar for its sibling
-  // instances by this name, and Bar.moduleWidgets() returns an empty list for a blank
-  // one. Without it `omarchy-shell <id> menu` reaches nothing and appears to do nothing.
+  // ⚠️ Required, not decorative. Bar.moduleWidgets() looks up this widget's sibling
+  // instances by this name and returns an empty list for a blank one. Without it
+  // `omarchy-shell <id> menu` reaches nothing and appears to do nothing.
   moduleName: "io.github.fromchaoscomesclarity.clarity"
   objectName: "clarityWidget"
 
@@ -66,8 +67,51 @@ BarWidget {
     { kind: "item", label: "Control Panel",      glyph: "󰒓", act: "action:control-panel" },
   ]
 
-  // Named so broadcast("toggleMenu") can find it on every instance.
+  // Called on whichever instance toggleMenuOnFocusedScreen() picks, and by the bar
+  // button on its own instance.
   function toggleMenu() { root.menuOpen = !root.menuOpen }
+
+  // ⚠️ PopupCard.close() is the ONLY thing that must set menuOpen from the popup side:
+  //
+  //     function close() {
+  //       if (owner && "close" in owner) owner.close()
+  //       else root.open = false            // <- assigns over `open: root.menuOpen`
+  //     }
+  //
+  // Without this function the else branch runs, and assigning to `open` destroys the
+  // binding that drives it. The menu then opens exactly once: the focus grab calls
+  // close() on the first outside click, the binding dies, and every later click sets
+  // menuOpen with nothing listening. Defining close() here is how a PopupCard owner
+  // opts out of that, and it is why `owner: root` is set at all.
+  function close() { root.menuOpen = false }
+
+  // Which screen a given widget instance is living on.
+  function screenNameOf(widget) {
+    var win = (widget && widget.QsWindow) ? widget.QsWindow.window : null
+    return (win && win.screen) ? String(win.screen.name || "") : ""
+  }
+
+  // A bar widget is live once per monitor, so broadcasting the toggle opened a popup on
+  // EVERY screen at once. Each PopupCard runs its own HyprlandFocusGrab, and a grab counts
+  // the other screen's popup as an outside click, so the grabs cleared one another and the
+  // menu shut the instant it opened. Open it on the focused screen alone, and drop any that
+  // a previous call left up elsewhere, so the menu never exists twice.
+  function toggleMenuOnFocusedScreen() {
+    var items = (root.bar && typeof root.bar.moduleWidgets === "function")
+      ? root.bar.moduleWidgets(root.moduleName) : []
+    if (!items || items.length === 0) items = [root]
+
+    var want = Hyprland.focusedMonitor ? String(Hyprland.focusedMonitor.name || "") : ""
+    var target = null
+    for (var i = 0; i < items.length; i++)
+      if (root.screenNameOf(items[i]) === want) { target = items[i]; break }
+    if (!target) target = items[0]
+
+    for (var j = 0; j < items.length; j++)
+      if (items[j] !== target && items[j].menuOpen) items[j].menuOpen = false
+
+    target.toggleMenu()
+  }
 
   function runMenuItem(item) {
     if (!item || !item.act) return
@@ -340,12 +384,12 @@ BarWidget {
 
   // Bindable from a key, and the only way to drive the menu without a mouse:
   //   omarchy-shell io.github.fromchaoscomesclarity.clarity menu
-  // ⚠️ A bar widget exists once per monitor, so the handler toggles through broadcast()
-  // rather than this instance alone, otherwise the menu opens on whichever screen the
-  // shell happened to instantiate first.
+    // ⚠️ A bar widget exists once per monitor. The handler must NOT toggle every
+    // instance: two popups open at once make their focus grabs cancel each other.
+    // It targets the focused screen instead.
   IpcHandler {
     target: (root.manifest && root.manifest.id) || "io.github.fromchaoscomesclarity.clarity"
-    function menu(): void { root.broadcast("toggleMenu") }
+    function menu(): void { root.toggleMenuOnFocusedScreen() }
     function library(): void { root.open([]) }
     function couch(): void { root.open(["--couch"]) }
     function playing(): string { return root.playing }
