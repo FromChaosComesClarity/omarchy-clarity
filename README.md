@@ -17,8 +17,12 @@ installed, what is running right now, and a fuzzy launcher that starts any of th
 **The launcher** (an overlay, bind it to a key, see below)
 
 - Type a few letters of a game's name, press **Enter**, play it
-- The game you are pointing at shows its **cover, genre, year, store, hours played and a
-  sentence about it**, which is what tells two games with similar names apart
+- **EmuLatte's ROMs are in the same list** when that app is installed too. One keystroke
+  searches both libraries, and Enter starts the game in whichever app owns it. ROMs are
+  badged by system, so the four *Altered Beast* entries read GENESIS, FBN and MAME rather
+  than looking like the same row four times
+- The game you are pointing at shows its **cover, genre, year, store or system, hours played
+  and a sentence about it**, which is what tells two games with similar names apart
 - **Shift+Enter** opens the game's page instead, for the description, the
   achievements, or the Doom a mod should run on
 - A game you own but have not installed opens its page too, which is where the
@@ -65,6 +69,17 @@ Three facts, gathered very differently:
   change. Nothing here walks a filesystem. Cover art is read from the path the library
   already stores, resolved against the app's own data directory, nothing is downloaded and
   no second copy of your artwork is made.
+
+EmuLatte's half of the list comes from **EmuLatte's own index script**, run through the
+plugin directory, rather than from this plugin reading that database itself. How to read a
+ROM library is EmuLatte's knowledge: the systems join, the rule for what counts as playable,
+and the re-homing of cover paths that go stale whenever its data directory moves. A second
+copy of that here would drift the first time its schema changed. If EmuLatte is not
+installed, or its index fails, Clarity's own library is returned unchanged.
+
+⚠️ Game ids are unique **within** a library and nowhere else, so every row carries the
+binary that plays it and Enter spawns that one. Handing a ROM's id to the wrong app would
+open whatever game happens to carry that number over there.
 
 The menu's count toggle is kept in `~/.local/state/omarchy/clarity-widget.json` rather than in
 the widget's own settings schema: schema values live in `shell.json` and a widget cannot write

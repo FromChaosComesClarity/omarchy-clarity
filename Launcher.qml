@@ -155,6 +155,7 @@ Item {
         rowKind: r.kind, rowId: String(r.id), rowName: r.name, rowBadge: r.badge,
         rowCover: r.cover || "", rowBlurb: r.blurb || "", rowGenre: r.genre || "",
         rowYear: r.year || "", rowStore: r.store || "", rowPlaytime: r.playtime || 0,
+        rowSource: r.source || "clarity", rowExec: r.exec || "",
       })
     }
 
@@ -202,7 +203,12 @@ Item {
   function activate(indexInModel, openPage) {
     if (indexInModel < 0 || indexInModel >= rowModel.count) return
     var row = rowModel.get(indexInModel)
-    var exec = String(root.index.exec || "")
+    // ⚠️ The row's own binary, not the index's. This list holds two libraries, and the app
+    // that owns a row is the only one that can play it: handing an EmuLatte ROM's id to
+    // Clarity would open whatever game happens to carry that number over there. Ids are
+    // unique within a source and nowhere else. The index's exec is the fallback, which is
+    // what actions and any row from an older index use.
+    var exec = String(row.rowExec || root.index.exec || "")
     if (exec === "") return
     var arg
     if (row.rowKind === "action") arg = "--action=" + row.rowId
