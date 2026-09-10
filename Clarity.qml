@@ -265,7 +265,7 @@ BarWidget {
     //
     // ⚠️ ...but the off branch is the ICON SLOT, never -1. BarIconButton defaults
     // fixedWidth to `vertical ? -1 : slotSize`, and -1 opts out of that into WidgetButton's
-    // label path, which sizes from `label.implicitWidth` — zero here, because an icon button
+    // label path, which sizes from `label.implicitWidth`, zero here, because an icon button
     // carries no text. The widget then comes out at max(12, margin * 2), around ten pixels
     // narrower than every other icon on the bar, and the mark sits crowded against its
     // neighbour. Reproduce BarIconButton's own default instead of disabling it.
